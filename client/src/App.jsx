@@ -649,83 +649,51 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   }, [role, currentUser]);
 
   // GPS izni kontrolü ve konum alma
-  useEffect(() => {
-    if (role === 'courier' && token) {
-      const checkLocationPermission = async () => {
-        try {
-          // GPS izni kontrol et
-          if ('geolocation' in navigator) {
-            // İzin durumunu kontrol et
-            if ('permissions' in navigator) {
-              const permission = await navigator.permissions.query({ name: 'geolocation' });
-              setLocationPermission(permission.state);
-              
-              permission.onchange = () => {
-                setLocationPermission(permission.state);
-              };
-            }
-            
-            // İlk konumu al
-            const getCurrentLocation = () => {
-              navigator.geolocation.getCurrentPosition(
-                (position) => {
-                  const { latitude, longitude } = position.coords;
-                  setUserLocation([latitude, longitude]);
-                  setMapCenter([latitude, longitude]);
-                  
-                  // Server'a konum gönder
-                  updateLocationOnServer(longitude, latitude);
-                },
-                (error) => {
-                  console.log('GPS hatası:', error.message);
-                  if (error.code === 1) {
-                    setLocationPermission('denied');
-                    notify('GPS izni gerekli. Lütfen tarayıcı ayarlarından konum iznini verin.', 'warning');
-                  } else if (error.code === 2) {
-                    notify('Konum alınamadı. Lütfen GPS\'in açık olduğundan emin olun.', 'warning');
-                  } else if (error.code === 3) {
-                    notify('Konum alma zaman aşımına uğradı.', 'warning');
-                  }
-                },
-                {
-                  enableHighAccuracy: true,
-                  timeout: 10000,
-                  maximumAge: 0
-                }
-              );
-            };
-            
-            getCurrentLocation();
-            
-            // Sürekli konum takibi (kargo firması tarzı)
-            const watchId = navigator.geolocation.watchPosition(
-              (position) => {
-                const { latitude, longitude } = position.coords;
-                setUserLocation([latitude, longitude]);
-                
-                // Server'a konum gönder
-                updateLocationOnServer(longitude, latitude);
-              },
-              (error) => {
-                console.log('Konum takip hatası:', error.message);
-              },
-              {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 5000 // 5 saniye eski konumları kabul et
-              }
-            );
-            
-            return () => {
-              navigator.geolocation.clearWatch(watchId);
-            };
-          }
-        } catch (error) {
-          console.log('GPS izin kontrolü hatası:', error);
-        }
-      };
+  const requestLocationPermission = useCallback(async () => {
+    try {
+      setLocationPermission('requesting');
       
-      checkLocationPermission();
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos),
+          (error) => reject(error),
+          { 
+            enableHighAccuracy: true, 
+            timeout: 10000, 
+            maximumAge: 60000 
+          }
+        );
+      });
+      
+      const coords = [position.coords.longitude, position.coords.latitude];
+      setUserLocation(coords);
+      setLocationPermission('granted');
+      
+      // Konumu server'a gönder
+      if (role === 'courier' && token) {
+        await updateLocationOnServer(coords);
+      }
+      
+      notify('📍 GPS konumu başarıyla alındı!', 'success');
+      return coords;
+    } catch (error) {
+      console.error('GPS konum hatası:', error);
+      let errorMessage = 'Konum bilgisi alınamadı';
+      
+      if (error.code === 1) {
+        errorMessage = '📍 GPS izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini verin.';
+        setLocationPermission('denied');
+      } else if (error.code === 2) {
+        errorMessage = '📍 Konum bilgisi bulunamadı. Lütfen GPS\'i açın.';
+        setLocationPermission('unavailable');
+      } else if (error.code === 3) {
+        errorMessage = '📍 Konum alımı zaman aşımına uğradı. Lütfen tekrar deneyin.';
+        setLocationPermission('timeout');
+      }
+      
+      notify(errorMessage, 'error');
+      setLocationPermission('error');
+      return null;
     }
   }, [role, token]);
 
@@ -741,32 +709,6 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
       console.log('Server konum güncelleme hatası:', error);
     }
   }, [token]);
-
-  // GPS izni isteme
-  const requestLocationPermission = useCallback(() => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation([latitude, longitude]);
-          setMapCenter([latitude, longitude]);
-          setLocationPermission('granted');
-          notify('GPS izni verildi! Konumunuz takip ediliyor.', 'success');
-          
-          // Server'a konum gönder
-          updateLocationOnServer(longitude, latitude);
-        },
-        (error) => {
-          setLocationPermission('denied');
-          notify('GPS izni reddedildi. Konum takibi yapılamıyor.', 'error');
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000
-        }
-      );
-    }
-  }, [updateLocationOnServer, notify]);
 
   useEffect(() => {
     if (role === 'courier') {
@@ -847,14 +789,19 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
         if (r.ok) {
           const withDistance = (d.couriers || []).map((c) => {
             // Mesafe hesaplama
-            let distance = 0;
+            let distance = null;
             if (c.location?.coordinates && profile.location?.coordinates) {
-              distance = haversineKm(
-                profile.location.coordinates[1], // lat
-                profile.location.coordinates[0], // lng
-                c.location.coordinates[1],      // lat
-                c.location.coordinates[0]       // lng
-              );
+              try {
+                distance = haversineKm(
+                  profile.location.coordinates[1], // lat
+                  profile.location.coordinates[0], // lng
+                  c.location.coordinates[1],      // lat
+                  c.location.coordinates[0]       // lng
+                );
+              } catch (error) {
+                console.error('Mesafe hesaplama hatası:', error);
+                distance = null;
+              }
             }
             
             return {
@@ -864,7 +811,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               location: 'GPS ile takip ediliyor',
               status: 'available',
               coordinates: c.location?.coordinates || [31.9957, 36.5441],
-              distance: distance.toFixed(1)
+              distance: distance ? `${distance.toFixed(1)} km` : 'Konum bilgisi alınamadı'
             };
           });
           setNearbyCouriers(withDistance);
@@ -892,14 +839,19 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
         if (r.ok) {
           const withDistance = (d.shops || []).map((s) => {
             // Mesafe hesaplama
-            let distance = 0;
+            let distance = null;
             if (s.location?.coordinates && userLocation) {
-              distance = haversineKm(
-                userLocation[0], // lat
-                userLocation[1], // lng
-                s.location.coordinates[1], // lat
-                s.location.coordinates[0]  // lng
-              );
+              try {
+                distance = haversineKm(
+                  userLocation[1], // lat
+                  userLocation[0], // lng
+                  s.location.coordinates[1], // lat
+                  s.location.coordinates[0]  // lng
+                );
+              } catch (error) {
+                console.error('Mesafe hesaplama hatası:', error);
+                distance = null;
+              }
             }
             
             return {
@@ -907,7 +859,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               name: s.name,
               address: s.addressText,
               coordinates: s.location?.coordinates || [31.9957, 36.5441],
-              distance: distance.toFixed(1)
+              distance: distance ? `${distance.toFixed(1)} km` : 'Konum bilgisi alınamadı'
             };
           });
           setNearbyShops(withDistance);
@@ -991,15 +943,21 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
             />
             
             <div style={{ marginTop: 30 }}>
-              <div className="map-toggle-container">
-                <h3>🏍️ Müsait Kuryeler (Gerçek Zamanlı)</h3>
-                <button 
-                  className="btn btn-secondary"
-                  onClick={() => setShowMap(!showMap)}
+              {/* Harita/Liste Toggle */}
+              <div className="view-toggle">
+                <button
+                  className={`toggle-btn ${!showMap ? 'active' : ''}`}
+                  onClick={() => setShowMap(false)}
                 >
-                  {showMap ? '📋 Liste Görünümü' : '🗺️ Canlı Harita'}
+                  📋 Liste Görünümü
                 </button>
-          </div>
+                <button
+                  className={`toggle-btn ${showMap ? 'active' : ''}`}
+                  onClick={() => setShowMap(true)}
+                >
+                  🗺️ Harita Görünümü
+                </button>
+              </div>
               
               {showMap ? (
                 <div className="map-container">
@@ -1035,7 +993,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                       >
                         <Popup>
                           <strong>🏍️ {courier.name}</strong><br/>
-                          Mesafe: {courier.distance} km<br/>
+                          Mesafe: {courier.distance}<br/>
                           Durum: Müsait<br/>
                           📱 {courier.phone}
                         </Popup>
@@ -1160,6 +1118,82 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
         </div>
       )}
 
+      {/* Kurye Paneli */}
+      {role === 'courier' && (
+        <div className="panel">
+          <div className="panel-header">
+            <h3>🏍️ Kurye Paneli</h3>
+            <div className="status-toggle">
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  try {
+                    const newVal = !isCourierActive;
+                    const r = await fetch(`${API}/couriers/status`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ active: newVal })
+                    });
+                    if (!r.ok) throw new Error('Durum güncellenemedi');
+                    setIsCourierActive(newVal);
+                    notify(`Durumunuz "${newVal ? 'Müsait' : 'Meşgul'}" olarak güncellendi.`);
+                  } catch (e) {
+                    notify(e.message, 'error');
+                  }
+                }}
+              >
+                {isCourierActive ? 'Meşgul Yap' : 'Müsait Yap'}
+              </button>
+            </div>
+          </div>
+          
+          <div className="panel-content">
+            {/* GPS İzin Kartı */}
+            {role === 'courier' && locationPermission !== 'granted' && (
+              <div className="gps-permission-card">
+                <h3>📍 GPS Konum İzni Gerekli</h3>
+                <p>
+                  {locationPermission === 'denied' && 'GPS izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini verin.'}
+                  {locationPermission === 'unavailable' && 'GPS konumu bulunamadı. Lütfen GPS\'i açın.'}
+                  {locationPermission === 'timeout' && 'Konum alımı zaman aşımına uğradı. Lütfen tekrar deneyin.'}
+                  {locationPermission === 'error' && 'Konum bilgisi alınamadı. Lütfen GPS iznini verin.'}
+                  {locationPermission === 'prompt' && 'Kurye olarak çalışmak için GPS konum izni gereklidir.'}
+                </p>
+                <button 
+                  className="btn btn-primary"
+                  onClick={requestLocationPermission}
+                  disabled={locationPermission === 'requesting'}
+                >
+                  {locationPermission === 'requesting' ? '📍 Konum Alınıyor...' : '📍 GPS İzni Ver'}
+                </button>
+              </div>
+            )}
+
+            {/* Yakın Dükkanlar */}
+            <div className="nearby-section">
+              <h4>🏪 Yakın Dükkanlar</h4>
+              {nearbyShops.length > 0 ? (
+                <div className="nearby-list">
+                  {nearbyShops.map((shop) => (
+                    <div key={shop.id} className="nearby-item">
+                      <div className="item-info">
+                        <strong>{shop.name}</strong>
+                        <span>{shop.address}</span>
+                        <span className="distance">{shop.distance}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="no-data">
+                  {locationPermission === 'granted' ? 'Yakın dükkan bulunamadı' : 'GPS izni verilmediği için dükkanlar görünemiyor'}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {role === 'courier' && (
         <div id="courierInterface" style={{ display: 'block' }}>
           <div className="courier-interface">
@@ -1168,30 +1202,24 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                 <h2>📍 Durumum & GPS</h2>
               </div>
               <div className="panel-content">
-                {/* GPS İzin Durumu */}
-                {locationPermission === 'prompt' && (
+                {/* GPS İzin Kartı */}
+                {role === 'courier' && locationPermission !== 'granted' && (
                   <div className="gps-permission-card">
-                    <div className="gps-icon">📍</div>
-                    <div className="gps-info">
-                      <h3>GPS İzni Gerekli</h3>
-                      <p>Gerçek zamanlı konum takibi için GPS iznini verin</p>
-                      <button className="btn btn-primary" onClick={requestLocationPermission}>
-                        📍 GPS İzni Ver
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                {locationPermission === 'denied' && (
-                  <div className="gps-permission-card error">
-                    <div className="gps-icon">❌</div>
-                    <div className="gps-info">
-                      <h3>GPS İzni Reddedildi</h3>
-                      <p>Konum takibi yapılamıyor. Tarayıcı ayarlarından izin verin.</p>
-                      <button className="btn btn-warning" onClick={requestLocationPermission}>
-                        🔄 Tekrar Dene
-                      </button>
-                    </div>
+                    <h3>📍 GPS Konum İzni Gerekli</h3>
+                    <p>
+                      {locationPermission === 'denied' && 'GPS izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini verin.'}
+                      {locationPermission === 'unavailable' && 'GPS konumu bulunamadı. Lütfen GPS\'i açın.'}
+                      {locationPermission === 'timeout' && 'Konum alımı zaman aşımına uğradı. Lütfen tekrar deneyin.'}
+                      {locationPermission === 'error' && 'Konum bilgisi alınamadı. Lütfen GPS iznini verin.'}
+                      {locationPermission === 'prompt' && 'Kurye olarak çalışmak için GPS konum izni gereklidir.'}
+                    </p>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={requestLocationPermission}
+                      disabled={locationPermission === 'requesting'}
+                    >
+                      {locationPermission === 'requesting' ? '📍 Konum Alınıyor...' : '📍 GPS İzni Ver'}
+                    </button>
                   </div>
                 )}
                 
@@ -1314,7 +1342,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         >
                           <Popup>
                             <strong>🏪 {shop.name}</strong><br/>
-                            Mesafe: {shop.distance} km<br/>
+                            Mesafe: {shop.distance}<br/>
                             Adres: {shop.address}
                           </Popup>
                         </Marker>

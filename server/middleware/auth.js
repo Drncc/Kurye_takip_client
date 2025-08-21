@@ -16,7 +16,16 @@ function auth(requiredRole) {
       };
       
       if (requiredRole && req.user.role !== requiredRole) {
-        return res.status(403).json({ error: 'Erişim reddedildi' });
+        // shop/store tutarsızlığını çöz
+        if (requiredRole === 'store' && req.user.role === 'shop') {
+          // shop role'ü store olarak kabul et
+          req.user.role = 'store';
+        } else if (requiredRole === 'shop' && req.user.role === 'store') {
+          // store role'ü shop olarak kabul et
+          req.user.role = 'shop';
+        } else if (req.user.role !== requiredRole) {
+          return res.status(403).json({ error: 'Erişim reddedildi' });
+        }
       }
       next();
     } catch (e) {
