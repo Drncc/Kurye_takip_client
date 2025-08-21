@@ -29,4 +29,27 @@ router.post('/nearby', auth('courier'), async (req, res) => {
   res.json({ shops: items });
 });
 
+// Tüm dükkanları getir (Admin)
+router.get('/all', async (req, res) => {
+  try {
+    const shops = await Shop.find({}).sort({ createdAt: -1 });
+    res.json({ shops });
+  } catch (error) {
+    res.status(500).json({ error: 'Dükkanlar alınamadı' });
+  }
+});
+
+// Dükkan sil (Admin)
+router.delete('/:id', async (req, res) => {
+  try {
+    const shop = await Shop.findByIdAndDelete(req.params.id);
+    if (!shop) {
+      return res.status(404).json({ error: 'Dükkan bulunamadı' });
+    }
+    res.json({ message: 'Dükkan silindi' });
+  } catch (error) {
+    res.status(500).json({ error: 'Dükkan silinemedi' });
+  }
+});
+
 module.exports = router;

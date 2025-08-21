@@ -3,12 +3,12 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Leaflet marker icon fix
+// Leaflet marker icon fix - CDN yerine local assets kullan
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
 const API = 'http://localhost:4000/api';
@@ -33,22 +33,80 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [profile, setProfile] = useState(null);
 
+  // Session persistence - sayfa yenilendiğinde kullanıcı bilgilerini geri yükle
+  useEffect(() => {
+    const savedToken = localStorage.getItem('deliveryPro_token');
+    const savedRole = localStorage.getItem('deliveryPro_role');
+    const savedUser = localStorage.getItem('deliveryPro_user');
+    const savedProfile = localStorage.getItem('deliveryPro_profile');
+
+    if (savedToken && savedRole && savedUser && savedProfile) {
+      try {
+        setToken(savedToken);
+        setRole(savedRole);
+        setCurrentUser(JSON.parse(savedUser));
+        setProfile(JSON.parse(savedProfile));
+        setScreen('app');
+      } catch (error) {
+        console.error('Session restore error:', error);
+        // Hatalı session'ı temizle
+        localStorage.removeItem('deliveryPro_token');
+        localStorage.removeItem('deliveryPro_role');
+        localStorage.removeItem('deliveryPro_user');
+        localStorage.removeItem('deliveryPro_profile');
+      }
+    }
+  }, []);
+
   const showNotification = (text, type) => {
     setNotification({ text, type });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleAuthenticated = (r, tok, serverProfile, uiUser) => {
+    // Session'ı localStorage'a kaydet
+    localStorage.setItem('deliveryPro_token', tok);
+    localStorage.setItem('deliveryPro_role', r);
+    localStorage.setItem('deliveryPro_user', JSON.stringify(uiUser));
+    localStorage.setItem('deliveryPro_profile', JSON.stringify(serverProfile));
+    
+    setRole(r);
+    setToken(tok);
+    setProfile(serverProfile);
+    setCurrentUser(uiUser);
+    setScreen('app');
+  };
+
+  const handleLogout = () => {
+    // Session'ı temizle
+    localStorage.removeItem('deliveryPro_token');
+    localStorage.removeItem('deliveryPro_role');
+    localStorage.removeItem('deliveryPro_user');
+    localStorage.removeItem('deliveryPro_profile');
+    
+    setScreen('login');
+    setRole(null);
+    setCurrentUser(null);
+    setToken(null);
+    setProfile(null);
+  };
+
+  const goToAdmin = () => {
+    setScreen('admin');
   };
 
   return (
     <div>
       {screen === 'login' && (
         <LoginScreen
-          onAuthenticated={(r, tok, serverProfile, uiUser) => {
-            setRole(r);
-            setToken(tok);
-            setProfile(serverProfile);
-            setCurrentUser(uiUser);
-            setScreen('app');
-          }}
+          onAuthenticated={handleAuthenticated}
+          onAdminAccess={goToAdmin}
+          notify={showNotification}
+        />
+      )}
+      {screen === 'admin' && (
+        <AdminPanel
+          onLogout={handleLogout}
           notify={showNotification}
         />
       )}
@@ -58,13 +116,7 @@ export default function App() {
           currentUser={currentUser}
           token={token}
           profile={profile}
-          onLogout={() => {
-            setScreen('login');
-            setRole(null);
-            setCurrentUser(null);
-            setToken(null);
-            setProfile(null);
-          }}
+          onLogout={handleLogout}
           notify={showNotification}
         />
       )}
@@ -81,7 +133,7 @@ export default function App() {
   );
 }
 
-function LoginScreen({ onAuthenticated, notify }) {
+function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
   const [selectedRole, setSelectedRole] = useState(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
   const storeNameRef = useRef(null);
@@ -111,6 +163,24 @@ function LoginScreen({ onAuthenticated, notify }) {
             <div className="role-icon">🏍️</div>
             <div className="role-name">Kurye</div>
           </div>
+        </div>
+
+        {/* Admin Panel Erişimi */}
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <button
+            className="admin-access-btn"
+            onClick={onAdminAccess}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#666',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              fontSize: '0.9rem'
+            }}
+          >
+            🔐 Yönetici Paneli
+          </button>
         </div>
 
         {selectedRole && (
@@ -373,19 +443,214 @@ function LoginScreen({ onAuthenticated, notify }) {
   );
 }
 
+function AdminPanel({ onLogout, notify }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [couriers, setCouriers] = useState([]);
+  const [shops, setShops] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const ADMIN_PASSWORD = 'admin123'; // Bu şifreyi değiştirin
+
+  const handleAdminLogin = () => {
+    if (adminPassword === ADMIN_PASSWORD) {
+      setIsAuthenticated(true);
+      notify('🔐 Yönetici paneline hoş geldiniz!', 'success');
+      fetchData();
+    } else {
+      notify('❌ Yanlış şifre!', 'error');
+    }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Kuryeleri getir
+      const courierRes = await fetch('http://localhost:4000/api/couriers/all');
+      const courierData = await courierRes.json();
+      if (courierRes.ok) setCouriers(courierData.couriers || []);
+
+      // Dükkanları getir
+      const shopRes = await fetch('http://localhost:4000/api/shops/all');
+      const shopData = await shopRes.json();
+      if (shopRes.ok) setShops(shopData.shops || []);
+    } catch (error) {
+      notify('Veri yüklenirken hata oluştu', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCourier = async (id) => {
+    if (!confirm('Bu kuryeyi silmek istediğinizden emin misiniz?')) return;
+    
+    try {
+      const res = await fetch(`http://localhost:4000/api/couriers/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        notify('✅ Kurye silindi', 'success');
+        setCouriers(couriers.filter(c => c._id !== id));
+      } else {
+        notify('❌ Kurye silinemedi', 'error');
+      }
+    } catch (error) {
+      notify('Silme işlemi başarısız', 'error');
+    }
+  };
+
+  const deleteShop = async (id) => {
+    if (!confirm('Bu dükkanı silmek istediğinizden emin misiniz?')) return;
+    
+    try {
+      const res = await fetch(`http://localhost:4000/api/shops/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        notify('✅ Dükkan silindi', 'success');
+        setShops(shops.filter(s => s._id !== id));
+      } else {
+        notify('❌ Dükkan silinemedi', 'error');
+      }
+    } catch (error) {
+      notify('Silme işlemi başarısız', 'error');
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="admin-login-container">
+        <div className="admin-login-box">
+          <h1>🔐 Yönetici Paneli</h1>
+          <p>Erişim için şifre girin</p>
+          <div className="admin-form">
+            <input
+              type="password"
+              placeholder="Yönetici şifresi"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+            />
+            <button onClick={handleAdminLogin} className="btn-primary">
+              🔑 Giriş Yap
+            </button>
+          </div>
+          <button onClick={onLogout} className="btn-secondary">
+            ← Geri Dön
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-panel">
+      <div className="admin-header">
+        <h1>🔐 Yönetici Paneli</h1>
+        <div className="admin-actions">
+          <button onClick={fetchData} className="btn btn-secondary">
+            🔄 Yenile
+          </button>
+          <button onClick={onLogout} className="btn btn-danger">
+            Çıkış
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Yükleniyor...</p>
+          </div>
+        </div>
+      )}
+
+      <div className="admin-content">
+        {/* Kurye Yönetimi */}
+        <div className="admin-section">
+          <h2>🏍️ Kurye Yönetimi ({couriers.length})</h2>
+          <div className="admin-grid">
+            {couriers.map(courier => (
+              <div key={courier._id} className="admin-card">
+                <div className="admin-card-header">
+                  <h3>{courier.name}</h3>
+                  <span className={`status-badge ${courier.active ? 'status-available' : 'status-busy'}`}>
+                    {courier.active ? 'Aktif' : 'Pasif'}
+                  </span>
+                </div>
+                <div className="admin-card-content">
+                  <p><strong>E-posta:</strong> {courier.email}</p>
+                  <p><strong>Telefon:</strong> {courier.phone || '-'}</p>
+                  <p><strong>Semt:</strong> {courier.district}</p>
+                  <p><strong>Adres:</strong> {courier.addressText}</p>
+                  <p><strong>Kayıt:</strong> {new Date(courier.createdAt).toLocaleDateString('tr-TR')}</p>
+                </div>
+                <div className="admin-card-actions">
+                  <button
+                    onClick={() => deleteCourier(courier._id)}
+                    className="btn btn-danger"
+                  >
+                    🗑️ Sil
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Dükkan Yönetimi */}
+        <div className="admin-section">
+          <h2>🏪 Dükkan Yönetimi ({shops.length})</h2>
+          <div className="admin-grid">
+            {shops.map(shop => (
+              <div key={shop._id} className="admin-card">
+                <div className="admin-card-header">
+                  <h3>{shop.name}</h3>
+                </div>
+                <div className="admin-card-content">
+                  <p><strong>E-posta:</strong> {shop.email}</p>
+                  <p><strong>Semt:</strong> {shop.district}</p>
+                  <p><strong>Adres:</strong> {shop.addressText}</p>
+                  <p><strong>Kayıt:</strong> {new Date(shop.createdAt).toLocaleDateString('tr-TR')}</p>
+                </div>
+                <div className="admin-card-actions">
+                  <button
+                    onClick={() => deleteShop(shop._id)}
+                    className="btn btn-danger"
+                  >
+                    🗑️ Sil
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
-  const [couriers, setCouriers] = useState(currentUser?.type === 'courier' ? [currentUser] : []);
+  const [couriers, setCouriers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [activeTime, setActiveTime] = useState(0);
-  const [isCourierActive, setIsCourierActive] = useState(currentUser?.status === 'available');
+  const [isCourierActive, setIsCourierActive] = useState(false);
   const [nearbyCouriers, setNearbyCouriers] = useState([]);
   const [nearbyShops, setNearbyShops] = useState([]);
   const [showMap, setShowMap] = useState(false);
   const [mapCenter, setMapCenter] = useState([36.5441, 31.9957]); // Alanya merkez
   const [userLocation, setUserLocation] = useState(null);
-  const [locationPermission, setLocationPermission] = useState('prompt'); // 'prompt', 'granted', 'denied'
+  const [locationPermission, setLocationPermission] = useState('prompt');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Kurye durumunu initialize et
+  useEffect(() => {
+    if (role === 'courier' && currentUser) {
+      setIsCourierActive(currentUser.status === 'available');
+    }
+  }, [role, currentUser]);
 
   // GPS izni kontrolü ve konum alma
   useEffect(() => {
@@ -592,10 +857,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
             status: 'available',
             coordinates: c.location.coordinates,
             distance: haversineKm(
-              profile.location.coordinates[1], 
-              profile.location.coordinates[0], 
-              c.location.coordinates[1], 
-              c.location.coordinates[0]
+              profile.location.coordinates[1], // lat
+              profile.location.coordinates[0], // lng
+              c.location.coordinates[1],      // lat
+              c.location.coordinates[0]       // lng
             ).toFixed(1)
           }));
           setNearbyCouriers(withDistance);
@@ -625,10 +890,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
             address: s.addressText,
             coordinates: s.location.coordinates,
             distance: haversineKm(
-              profile.location.coordinates[1], 
-              profile.location.coordinates[0], 
-              s.location.coordinates[1], 
-              s.location.coordinates[0]
+              profile.location.coordinates[1], // lat
+              profile.location.coordinates[0], // lng
+              s.location.coordinates[1],      // lat
+              s.location.coordinates[0]       // lng
             ).toFixed(1)
           }));
           setNearbyShops(withDistance);
@@ -942,15 +1207,20 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                     onClick={async () => {
                       try {
                         const newVal = !isCourierActive;
-                        const r = await fetch(`${API}/couriers/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ active: newVal }) });
+                        const r = await fetch(`${API}/couriers/status`, { 
+                          method: 'POST', 
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                          body: JSON.stringify({ active: newVal }) 
+                        });
                         if (!r.ok) throw new Error('Durum güncellenemedi');
                         setIsCourierActive(newVal);
-                        setCouriers((cs) => cs.map((c) => (c.id === currentUser.id ? { ...c, status: newVal ? 'available' : 'busy' } : c)));
                         notify(`Durumunuz "${newVal ? 'Müsait' : 'Meşgul'}" olarak güncellendi.`);
-                      } catch (e) { notify(e.message, 'error'); }
+                      } catch (e) { 
+                        notify(e.message, 'error'); 
+                      }
                     }}
                   >
-                    Durumu Değiştir
+                    {isCourierActive ? 'Meşgul Yap' : 'Müsait Yap'}
                   </button>
                 </div>
               </div>
@@ -1222,7 +1492,9 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371; // km
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }

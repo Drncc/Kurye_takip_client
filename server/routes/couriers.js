@@ -45,4 +45,27 @@ router.post('/nearby', auth('shop'), async (req, res) => {
   res.json({ couriers: items });
 });
 
+// Tüm kuryeleri getir (Admin)
+router.get('/all', async (req, res) => {
+  try {
+    const couriers = await Courier.find({}).sort({ createdAt: -1 });
+    res.json({ couriers });
+  } catch (error) {
+    res.status(500).json({ error: 'Kuryeler alınamadı' });
+  }
+});
+
+// Kurye sil (Admin)
+router.delete('/:id', async (req, res) => {
+  try {
+    const courier = await Courier.findByIdAndDelete(req.params.id);
+    if (!courier) {
+      return res.status(404).json({ error: 'Kurye bulunamadı' });
+    }
+    res.json({ message: 'Kurye silindi' });
+  } catch (error) {
+    res.status(500).json({ error: 'Kurye silinemedi' });
+  }
+});
+
 module.exports = router;
