@@ -252,7 +252,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
 
   const assignOrderToNearest = (deliveryDistrict) => {
     if (availableCouriers.length === 0) return null;
-    let nearest = null as any;
+    let nearest = null;
     let shortest = Number.POSITIVE_INFINITY;
     for (const c of availableCouriers) {
       const d = (DIST_MATRIX[c.location] && DIST_MATRIX[c.location][deliveryDistrict]) ?? 20;
