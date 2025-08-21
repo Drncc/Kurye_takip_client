@@ -386,40 +386,128 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   const [nearbyShops, setNearbyShops] = useState([]);
   const [showMap, setShowMap] = useState(false);
   const [mapCenter, setMapCenter] = useState([36.5441, 31.9957]); // Alanya merkez
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationPermission, setLocationPermission] = useState('prompt'); // 'prompt', 'granted', 'denied'
 
-  // Kurye konumunu otomatik güncelleme (her 30 saniyede)
+  // GPS izni kontrolü ve konum alma
   useEffect(() => {
     if (role === 'courier' && token) {
-      const updateLocation = async () => {
+      const checkLocationPermission = async () => {
         try {
-          const pos = await new Promise((res, rej) => 
-            navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { 
-              enableHighAccuracy: true, 
-              timeout: 10000,
-              maximumAge: 30000 
-            })
-          );
-          
-          if (pos) {
-            await fetch(`${API}/couriers/location`, { 
-              method: 'POST', 
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-              body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) 
-            });
+          // GPS izni kontrol et
+          if ('geolocation' in navigator) {
+            // İzin durumunu kontrol et
+            if ('permissions' in navigator) {
+              const permission = await navigator.permissions.query({ name: 'geolocation' });
+              setLocationPermission(permission.state);
+              
+              permission.onchange = () => {
+                setLocationPermission(permission.state);
+              };
+            }
+            
+            // İlk konumu al
+            const getCurrentLocation = () => {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  const { latitude, longitude } = position.coords;
+                  setUserLocation([latitude, longitude]);
+                  setMapCenter([latitude, longitude]);
+                  
+                  // Server'a konum gönder
+                  updateLocationOnServer(longitude, latitude);
+                },
+                (error) => {
+                  console.log('GPS hatası:', error.message);
+                  if (error.code === 1) {
+                    setLocationPermission('denied');
+                    notify('GPS izni gerekli. Lütfen tarayıcı ayarlarından konum iznini verin.', 'warning');
+                  } else if (error.code === 2) {
+                    notify('Konum alınamadı. Lütfen GPS\'in açık olduğundan emin olun.', 'warning');
+                  } else if (error.code === 3) {
+                    notify('Konum alma zaman aşımına uğradı.', 'warning');
+                  }
+                },
+                {
+                  enableHighAccuracy: true,
+                  timeout: 10000,
+                  maximumAge: 0
+                }
+              );
+            };
+            
+            getCurrentLocation();
+            
+            // Sürekli konum takibi (kargo firması tarzı)
+            const watchId = navigator.geolocation.watchPosition(
+              (position) => {
+                const { latitude, longitude } = position.coords;
+                setUserLocation([latitude, longitude]);
+                
+                // Server'a konum gönder
+                updateLocationOnServer(longitude, latitude);
+              },
+              (error) => {
+                console.log('Konum takip hatası:', error.message);
+              },
+              {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 5000 // 5 saniye eski konumları kabul et
+              }
+            );
+            
+            return () => {
+              navigator.geolocation.clearWatch(watchId);
+            };
           }
         } catch (error) {
-          console.log('Konum güncellenemedi:', error);
+          console.log('GPS izin kontrolü hatası:', error);
         }
       };
-
-      // İlk konum güncellemesi
-      updateLocation();
       
-      // Her 30 saniyede bir konum güncelle
-      const interval = setInterval(updateLocation, 30000);
-      return () => clearInterval(interval);
+      checkLocationPermission();
     }
   }, [role, token]);
+
+  // Server'a konum gönderme
+  const updateLocationOnServer = async (longitude, latitude) => {
+    try {
+      await fetch(`${API}/couriers/location`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+        body: JSON.stringify({ coords: { lng: longitude, lat: latitude } }) 
+      });
+    } catch (error) {
+      console.log('Server konum güncelleme hatası:', error);
+    }
+  };
+
+  // GPS izni isteme
+  const requestLocationPermission = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation([latitude, longitude]);
+          setMapCenter([latitude, longitude]);
+          setLocationPermission('granted');
+          notify('GPS izni verildi! Konumunuz takip ediliyor.', 'success');
+          
+          // Server'a konum gönder
+          updateLocationOnServer(longitude, latitude);
+        },
+        (error) => {
+          setLocationPermission('denied');
+          notify('GPS izni reddedildi. Konum takibi yapılamıyor.', 'error');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000
+        }
+      );
+    }
+  };
 
   useEffect(() => {
     if (role === 'courier') {
@@ -449,7 +537,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
     return () => clearInterval(i);
   }, [role, token]);
 
-  // Fetch nearby couriers for store
+  // Fetch nearby couriers for store (her 5 saniyede bir - gerçek zamanlı)
   useEffect(() => {
     if (role !== 'store' || !token || !profile?.location) return;
     const fetchNearby = async () => {
@@ -480,11 +568,11 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
       } catch {}
     };
     fetchNearby();
-    const i = setInterval(fetchNearby, 10000);
+    const i = setInterval(fetchNearby, 5000); // 5 saniyede bir güncelle
     return () => clearInterval(i);
   }, [role, token, profile]);
 
-  // Fetch nearby shops for courier
+  // Fetch nearby shops for courier (her 10 saniyede bir)
   useEffect(() => {
     if (role !== 'courier' || !token || !profile?.location) return;
     const fetchNearbyShops = async () => {
@@ -513,7 +601,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
       } catch {}
     };
     fetchNearbyShops();
-    const i = setInterval(fetchNearbyShops, 15000);
+    const i = setInterval(fetchNearbyShops, 10000);
     return () => clearInterval(i);
   }, [role, token, profile]);
 
@@ -558,12 +646,12 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
             
             <div style={{ marginTop: 30 }}>
               <div className="map-toggle-container">
-                <h3>🏍️ Müsait Kuryeler</h3>
+                <h3>🏍️ Müsait Kuryeler (Gerçek Zamanlı)</h3>
                 <button 
                   className="btn btn-secondary"
                   onClick={() => setShowMap(!showMap)}
                 >
-                  {showMap ? '📋 Liste Görünümü' : '🗺️ Harita Görünümü'}
+                  {showMap ? '📋 Liste Görünümü' : '🗺️ Canlı Harita'}
                 </button>
               </div>
               
@@ -571,7 +659,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                 <div className="map-container">
                   <MapContainer 
                     center={mapCenter} 
-                    zoom={12} 
+                    zoom={13} 
                     style={{ height: '100%', width: '100%' }}
                   >
                     <TileLayer
@@ -587,7 +675,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         </Popup>
                       </Marker>
                     )}
-                    {/* Müsait kuryeler */}
+                    {/* Müsait kuryeler - gerçek zamanlı */}
                     {nearbyCouriers.map((courier) => (
                       <Marker 
                         key={courier.id} 
@@ -602,11 +690,16 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         <Popup>
                           <strong>🏍️ {courier.name}</strong><br/>
                           Mesafe: {courier.distance} km<br/>
-                          Durum: Müsait
+                          Durum: Müsait<br/>
+                          📱 {courier.phone}
                         </Popup>
                       </Marker>
                     ))}
                   </MapContainer>
+                  <div className="map-info">
+                    <p>📍 Müsait kuryelerin konumları her 5 saniyede bir güncellenir</p>
+                    <p>🏍️ Kurye ikonlarına tıklayarak detayları görün</p>
+                  </div>
                 </div>
               ) : (
                 <div id="availableCouriers">
@@ -640,9 +733,47 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
           <div className="courier-interface">
             <div className="courier-panel">
               <div className="panel-header">
-                <h2>📍 Durumum</h2>
+                <h2>📍 Durumum & GPS</h2>
               </div>
               <div className="panel-content">
+                {/* GPS İzin Durumu */}
+                {locationPermission === 'prompt' && (
+                  <div className="gps-permission-card">
+                    <div className="gps-icon">📍</div>
+                    <div className="gps-info">
+                      <h3>GPS İzni Gerekli</h3>
+                      <p>Gerçek zamanlı konum takibi için GPS iznini verin</p>
+                      <button className="btn btn-primary" onClick={requestLocationPermission}>
+                        📍 GPS İzni Ver
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {locationPermission === 'denied' && (
+                  <div className="gps-permission-card error">
+                    <div className="gps-icon">❌</div>
+                    <div className="gps-info">
+                      <h3>GPS İzni Reddedildi</h3>
+                      <p>Konum takibi yapılamıyor. Tarayıcı ayarlarından izin verin.</p>
+                      <button className="btn btn-warning" onClick={requestLocationPermission}>
+                        🔄 Tekrar Dene
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {locationPermission === 'granted' && userLocation && (
+                  <div className="gps-status-card success">
+                    <div className="gps-icon">✅</div>
+                    <div className="gps-info">
+                      <h3>GPS Aktif</h3>
+                      <p>Konumunuz gerçek zamanlı takip ediliyor</p>
+                      <small>Son güncelleme: {new Date().toLocaleTimeString('tr-TR')}</small>
+                    </div>
+                  </div>
+                )}
+
                 <div className="courier-card">
                   <div id="courierStatusBadge" className={`courier-status ${isCourierActive ? 'status-available' : 'status-busy'}`}>
                     {isCourierActive ? 'Müsait' : 'Meşgul'}
@@ -659,9 +790,11 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                       <p>
                         <strong>🕐 Aktif Süre:</strong> <span id="activeTime">{activeTime} dakika</span>
                       </p>
-                      <p style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
-                        📍 Konumunuz otomatik olarak güncelleniyor (30 saniyede bir)
-                      </p>
+                      {locationPermission === 'granted' && (
+                        <p style={{ fontSize: '0.9rem', color: '#28a745', fontStyle: 'italic' }}>
+                          📍 GPS aktif - Konumunuz her 5 saniyede bir güncelleniyor
+                        </p>
+                      )}
                     </div>
                   </div>
                   <button
@@ -692,7 +825,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                 <div className="map-toggle-container">
                   <div>
                     <h3>Size yakın dükkanları görüntüleyin</h3>
-                    <p>Mesafe bilgileri gerçek zamanlı güncellenir</p>
+                    <p>Mesafe bilgileri her 10 saniyede bir güncellenir</p>
                   </div>
                   <button 
                     className="btn btn-secondary"
@@ -705,18 +838,18 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                 {showMap ? (
                   <div className="map-container">
                     <MapContainer 
-                      center={mapCenter} 
-                      zoom={12} 
+                      center={userLocation || mapCenter} 
+                      zoom={13} 
                       style={{ height: '100%', width: '100%' }}
                     >
                       <TileLayer
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                       />
-                      {/* Kurye konumu */}
-                      {profile?.location?.coordinates && (
+                      {/* Kurye konumu - gerçek zamanlı */}
+                      {userLocation && (
                         <Marker 
-                          position={[profile.location.coordinates[1], profile.location.coordinates[0]]}
+                          position={userLocation}
                           icon={L.divIcon({
                             className: 'courier-marker',
                             html: '🏍️',
@@ -726,7 +859,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         >
                           <Popup>
                             <strong>🏍️ {currentUser.name}</strong><br/>
-                            Sizin konumunuz
+                            Sizin konumunuz (GPS)
                           </Popup>
                         </Marker>
                       )}
@@ -750,6 +883,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         </Marker>
                       ))}
                     </MapContainer>
+                    <div className="map-info">
+                      <p>📍 Konumunuz GPS ile gerçek zamanlı takip ediliyor</p>
+                      <p>🏪 Dükkan konumları her 10 saniyede bir güncellenir</p>
+                    </div>
                   </div>
                 ) : (
                   <div id="nearbyShops">

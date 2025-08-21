@@ -11,9 +11,16 @@ const router = express.Router();
 router.post('/register/shop', async (req, res) => {
   try {
     const { name, email, password, addressText, district } = req.body;
+    
+    // Aynı e-posta kontrolü
+    const existingShop = await Shop.findOne({ email: email.toLowerCase() });
+    if (existingShop) {
+      return res.status(400).json({ error: 'Bu e-posta adresi zaten kullanılıyor. Lütfen farklı bir e-posta adresi deneyin.' });
+    }
+    
     const location = await geocodeAddressToPoint(addressText);
     const passwordHash = await bcrypt.hash(password, 10);
-    const shop = await Shop.create({ name, email, passwordHash, addressText, district, location });
+    const shop = await Shop.create({ name, email: email.toLowerCase(), passwordHash, addressText, district, location });
     const token = jwt.sign({ id: shop._id, role: 'shop' }, jwtSecret, { expiresIn: '7d' });
     res.json({ token });
   } catch (e) { res.status(400).json({ error: e.message }); }
@@ -22,9 +29,16 @@ router.post('/register/shop', async (req, res) => {
 router.post('/register/courier', async (req, res) => {
   try {
     const { name, email, password, addressText, district, phone } = req.body;
+    
+    // Aynı e-posta kontrolü
+    const existingCourier = await Courier.findOne({ email: email.toLowerCase() });
+    if (existingCourier) {
+      return res.status(400).json({ error: 'Bu e-posta adresi zaten kullanılıyor. Lütfen farklı bir e-posta adresi deneyin.' });
+    }
+    
     const location = addressText ? await geocodeAddressToPoint(addressText) : { type: 'Point', coordinates: [0, 0] };
     const passwordHash = await bcrypt.hash(password, 10);
-    const courier = await Courier.create({ name, email, passwordHash, addressText, district, phone, location, active: false });
+    const courier = await Courier.create({ name, email: email.toLowerCase(), passwordHash, addressText, district, phone, location, active: false });
     const token = jwt.sign({ id: courier._id, role: 'courier' }, jwtSecret, { expiresIn: '7d' });
     res.json({ token });
   } catch (e) { res.status(400).json({ error: e.message }); }
