@@ -13,17 +13,17 @@ L.Icon.Default.mergeOptions({
 
 const API = 'http://localhost:4000/api';
 
-// Alanya semt ve mahalle verileri
-const ALANYA_DISTRICTS = {
-  'Mahmutlar': ['Mahmutlar', 'Tosmur', 'Oba', 'Kestel'],
-  'Kleopatra': ['Kleopatra', 'Gullerpinari', 'Hacet', 'Kale'],
-  'Oba': ['Oba', 'Mahmutlar', 'Tosmur'],
-  'Tosmur': ['Tosmur', 'Mahmutlar', 'Oba'],
-  'Kestel': ['Kestel', 'Mahmutlar', 'Oba'],
-  'Gullerpinari': ['Gullerpinari', 'Kleopatra', 'Hacet'],
-  'Hacet': ['Hacet', 'Kleopatra', 'Gullerpinari'],
-  'Kale': ['Kale', 'Kleopatra', 'Hacet']
-};
+// Alanya semtleri - sadece ana semtler
+const ALANYA_DISTRICTS = [
+  'Mahmutlar',
+  'Kleopatra', 
+  'Oba',
+  'Tosmur',
+  'Kestel',
+  'Gullerpinari',
+  'Hacet',
+  'Kale'
+];
 
 export default function App() {
   const [screen, setScreen] = useState('login');
@@ -87,7 +87,6 @@ function LoginScreen({ onAuthenticated, notify }) {
   const storeNameRef = useRef(null);
   const storeAddressRef = useRef(null);
   const storeDistrictRef = useRef(null);
-  const storeNeighborhoodRef = useRef(null);
   const storeEmailRef = useRef(null);
   const storePasswordRef = useRef(null);
   const courierNameRef = useRef(null);
@@ -96,15 +95,6 @@ function LoginScreen({ onAuthenticated, notify }) {
   const courierPasswordRef = useRef(null);
   const courierAddressRef = useRef(null);
   const courierDistrictRef = useRef(null);
-  const courierNeighborhoodRef = useRef(null);
-
-  const handleDistrictChange = (district, isStore) => {
-    if (isStore) {
-      storeNeighborhoodRef.current.value = '';
-    } else {
-      courierNeighborhoodRef.current.value = '';
-    }
-  };
 
   return (
     <div id="loginScreen" className="login-container">
@@ -159,25 +149,16 @@ function LoginScreen({ onAuthenticated, notify }) {
                 </div>
                 <div className="form-group">
                   <label htmlFor="storeDistrict">Semt:</label>
-                  <select id="storeDistrict" ref={storeDistrictRef} onChange={() => handleDistrictChange(storeDistrictRef.current.value, true)}>
+                  <select id="storeDistrict" ref={storeDistrictRef}>
                     <option value="">Semt seçin...</option>
-                    {Object.keys(ALANYA_DISTRICTS).map(district => (
+                    {ALANYA_DISTRICTS.map(district => (
                       <option key={district} value={district}>{district}</option>
                     ))}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label htmlFor="storeNeighborhood">Mahalle:</label>
-                  <select id="storeNeighborhood" ref={storeNeighborhoodRef}>
-                    <option value="">Önce semt seçin...</option>
-                    {storeDistrictRef.current?.value && ALANYA_DISTRICTS[storeDistrictRef.current.value]?.map(neighborhood => (
-                      <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
                   <label htmlFor="storeAddress">Detaylı Adres:</label>
-                  <input type="text" id="storeAddress" placeholder="Sokak, bina no, kat..." ref={storeAddressRef} />
+                  <input type="text" id="storeAddress" placeholder="Mahalle, sokak, bina no..." ref={storeAddressRef} />
                 </div>
               </>
             )}
@@ -215,21 +196,19 @@ function LoginScreen({ onAuthenticated, notify }) {
                   // Kayıt
                   const name = (storeNameRef.current?.value || '').trim();
                   const district = (storeDistrictRef.current?.value || '').trim();
-                  const neighborhood = (storeNeighborhoodRef.current?.value || '').trim();
                   const addressText = (storeAddressRef.current?.value || '').trim();
                   
                   if (!name) return notify('Dükkan adı zorunludur', 'error');
                   if (!district) return notify('Semt seçimi zorunludur', 'error');
-                  if (!neighborhood) return notify('Mahalle seçimi zorunludur', 'error');
-                  if (!addressText) return notify('Detaylı adres zorunludur', 'error');
+                  if (!addressText) return notify('Adres zorunludur', 'error');
                   
-                  const fullAddress = `${neighborhood}, ${district}, ${addressText}`;
+                  const fullAddress = `${addressText}, ${district}`;
                   
                   try {
                     const r = await fetch(`${API}/auth/register/shop`, { 
                       method: 'POST', 
                       headers: { 'Content-Type': 'application/json' }, 
-                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district, neighborhood }) 
+                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district }) 
                     });
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
@@ -274,25 +253,16 @@ function LoginScreen({ onAuthenticated, notify }) {
                 </div>
                 <div className="form-group">
                   <label htmlFor="courierDistrict">Semt:</label>
-                  <select id="courierDistrict" ref={courierDistrictRef} onChange={() => handleDistrictChange(courierDistrictRef.current.value, false)}>
+                  <select id="courierDistrict" ref={courierDistrictRef}>
                     <option value="">Semt seçin...</option>
-                    {Object.keys(ALANYA_DISTRICTS).map(district => (
+                    {ALANYA_DISTRICTS.map(district => (
                       <option key={district} value={district}>{district}</option>
                     ))}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label htmlFor="courierNeighborhood">Mahalle:</label>
-                  <select id="courierNeighborhood" ref={courierNeighborhoodRef}>
-                    <option value="">Önce semt seçin...</option>
-                    {courierDistrictRef.current?.value && ALANYA_DISTRICTS[courierDistrictRef.current.value]?.map(neighborhood => (
-                      <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
                   <label htmlFor="courierAddress">Detaylı Adres:</label>
-                  <input type="text" id="courierAddress" placeholder="Sokak, bina no, kat..." ref={courierAddressRef} />
+                  <input type="text" id="courierAddress" placeholder="Mahalle, sokak, bina no..." ref={courierAddressRef} />
                 </div>
               </>
             )}
@@ -350,21 +320,19 @@ function LoginScreen({ onAuthenticated, notify }) {
                   const name = (courierNameRef.current?.value || '').trim();
                   const phone = (courierPhoneRef.current?.value || '').trim();
                   const district = (courierDistrictRef.current?.value || '').trim();
-                  const neighborhood = (courierNeighborhoodRef.current?.value || '').trim();
                   const addressText = (courierAddressRef.current?.value || '').trim();
                   
                   if (!name) return notify('İsim zorunludur', 'error');
                   if (!district) return notify('Semt seçimi zorunludur', 'error');
-                  if (!neighborhood) return notify('Mahalle seçimi zorunludur', 'error');
-                  if (!addressText) return notify('Detaylı adres zorunludur', 'error');
+                  if (!addressText) return notify('Adres zorunludur', 'error');
                   
-                  const fullAddress = `${neighborhood}, ${district}, ${addressText}`;
+                  const fullAddress = `${addressText}, ${district}`;
                   
                   try {
                     const r = await fetch(`${API}/auth/register/courier`, { 
                       method: 'POST', 
                       headers: { 'Content-Type': 'application/json' }, 
-                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district, neighborhood, phone }) 
+                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district, phone }) 
                     });
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
@@ -409,15 +377,6 @@ function LoginScreen({ onAuthenticated, notify }) {
   );
 }
 
-const DIST_MATRIX = {
-  Konyaaltı: { Konyaaltı: 2, Lara: 25, Muratpaşa: 12, Kepez: 18, Aksu: 30, Döşemealtı: 20 },
-  Lara: { Konyaaltı: 25, Lara: 3, Muratpaşa: 15, Kepez: 20, Aksu: 8, Döşemealtı: 25 },
-  Muratpaşa: { Konyaaltı: 12, Lara: 15, Muratpaşa: 2, Kepez: 8, Aksu: 18, Döşemealtı: 15 },
-  Kepez: { Konyaaltı: 18, Lara: 20, Muratpaşa: 8, Kepez: 2, Aksu: 22, Döşemealtı: 12 },
-  Aksu: { Konyaaltı: 30, Lara: 8, Muratpaşa: 18, Kepez: 22, Aksu: 2, Döşemealtı: 28 },
-  Döşemealtı: { Konyaaltı: 20, Lara: 25, Muratpaşa: 15, Kepez: 12, Aksu: 28, Döşemealtı: 3 },
-};
-
 function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   const [couriers, setCouriers] = useState(currentUser?.type === 'courier' ? [currentUser] : []);
   const [orders, setOrders] = useState([]);
@@ -427,6 +386,40 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   const [nearbyShops, setNearbyShops] = useState([]);
   const [showMap, setShowMap] = useState(false);
   const [mapCenter, setMapCenter] = useState([36.5441, 31.9957]); // Alanya merkez
+
+  // Kurye konumunu otomatik güncelleme (her 30 saniyede)
+  useEffect(() => {
+    if (role === 'courier' && token) {
+      const updateLocation = async () => {
+        try {
+          const pos = await new Promise((res, rej) => 
+            navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { 
+              enableHighAccuracy: true, 
+              timeout: 10000,
+              maximumAge: 30000 
+            })
+          );
+          
+          if (pos) {
+            await fetch(`${API}/couriers/location`, { 
+              method: 'POST', 
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+              body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) 
+            });
+          }
+        } catch (error) {
+          console.log('Konum güncellenemedi:', error);
+        }
+      };
+
+      // İlk konum güncellemesi
+      updateLocation();
+      
+      // Her 30 saniyede bir konum güncelle
+      const interval = setInterval(updateLocation, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [role, token]);
 
   useEffect(() => {
     if (role === 'courier') {
@@ -440,20 +433,6 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   }, [role, currentUser, couriers.length]);
 
   const availableCouriers = useMemo(() => couriers.filter((c) => c.status === 'available'), [couriers]);
-
-  const assignOrderToNearest = (deliveryDistrict) => {
-    if (availableCouriers.length === 0) return null;
-    let nearest = null;
-    let shortest = Number.POSITIVE_INFINITY;
-    for (const c of availableCouriers) {
-      const d = (DIST_MATRIX[c.location] && DIST_MATRIX[c.location][deliveryDistrict]) ?? 20;
-      if (d < shortest) {
-        shortest = d;
-        nearest = { courier: c, distance: d };
-      }
-    }
-    return nearest;
-  };
 
   // Fetch courier orders periodically
   useEffect(() => {
@@ -632,11 +611,11 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               ) : (
                 <div id="availableCouriers">
                   {nearbyCouriers.map((c) => (
-                    <div key={c.id} className="courier-card" style={{ background: '#f8f9fa', border: '2px solid #e9ecef' }}>
-                      <div className="courier-status status-available" style={{ marginBottom: 8 }}>Müsait</div>
-                      <div className="courier-info" style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12 }}>
+                    <div key={c.id} className="courier-card">
+                      <div className="courier-status status-available">Müsait</div>
+                      <div className="courier-info">
                         <div className="courier-details">
-                          <h3 style={{ marginBottom: 8 }}>{c.name}</h3>
+                          <h3>{c.name}</h3>
                           <p>
                             <strong>📍 Yakınlık:</strong> ~{c.distance} km
                           </p>
@@ -679,6 +658,9 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                       </p>
                       <p>
                         <strong>🕐 Aktif Süre:</strong> <span id="activeTime">{activeTime} dakika</span>
+                      </p>
+                      <p style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                        📍 Konumunuz otomatik olarak güncelleniyor (30 saniyede bir)
                       </p>
                     </div>
                   </div>
@@ -873,13 +855,8 @@ function StoreContent({ onCreate, couriers }) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryDistrict, setDeliveryDistrict] = useState('');
-  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
   const [packageDetails, setPackageDetails] = useState('');
   const [priority, setPriority] = useState('normal');
-
-  const handleDeliveryDistrictChange = (district) => {
-    setDeliveryNeighborhood('');
-  };
 
   return (
     <div className="store-content">
@@ -887,14 +864,13 @@ function StoreContent({ onCreate, couriers }) {
         id="orderForm"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!customerName || !customerPhone || !deliveryAddress || !deliveryDistrict || !deliveryNeighborhood || !packageDetails) return;
-          const fullDeliveryAddress = `${deliveryNeighborhood}, ${deliveryDistrict}, ${deliveryAddress}`;
-          onCreate({ customerName, customerPhone, deliveryAddress: fullDeliveryAddress, deliveryDistrict, deliveryNeighborhood, packageDetails, priority });
+          if (!customerName || !customerPhone || !deliveryAddress || !deliveryDistrict || !packageDetails) return;
+          const fullDeliveryAddress = `${deliveryAddress}, ${deliveryDistrict}`;
+          onCreate({ customerName, customerPhone, deliveryAddress: fullDeliveryAddress, deliveryDistrict, packageDetails, priority });
           setCustomerName('');
           setCustomerPhone('');
           setDeliveryAddress('');
           setDeliveryDistrict('');
-          setDeliveryNeighborhood('');
           setPackageDetails('');
           setPriority('normal');
         }}
@@ -909,25 +885,16 @@ function StoreContent({ onCreate, couriers }) {
         </div>
         <div className="form-group">
           <label htmlFor="deliveryDistrict">Teslimat Semti:</label>
-          <select id="deliveryDistrict" value={deliveryDistrict} onChange={(e) => handleDeliveryDistrictChange(e.target.value)} required>
+          <select id="deliveryDistrict" value={deliveryDistrict} onChange={(e) => setDeliveryDistrict(e.target.value)} required>
             <option value="">Semt seçin...</option>
-            {Object.keys(ALANYA_DISTRICTS).map(district => (
+            {ALANYA_DISTRICTS.map(district => (
               <option key={district} value={district}>{district}</option>
             ))}
           </select>
         </div>
         <div className="form-group">
-          <label htmlFor="deliveryNeighborhood">Teslimat Mahallesi:</label>
-          <select id="deliveryNeighborhood" value={deliveryNeighborhood} onChange={(e) => setDeliveryNeighborhood(e.target.value)} required>
-            <option value="">Önce semt seçin...</option>
-            {deliveryDistrict && ALANYA_DISTRICTS[deliveryDistrict]?.map(neighborhood => (
-              <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
           <label htmlFor="deliveryAddress">Detaylı Teslimat Adresi:</label>
-          <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} id="deliveryAddress" rows={3} placeholder="Sokak, bina no, kat..." required />
+          <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} id="deliveryAddress" rows={3} placeholder="Mahalle, sokak, bina no, kat..." required />
         </div>
         <div className="form-group">
           <label htmlFor="packageDetails">Paket Detayları:</label>
@@ -945,38 +912,8 @@ function StoreContent({ onCreate, couriers }) {
           📦 Sipariş Oluştur
         </button>
       </form>
-
-      <div style={{ marginTop: 30 }}>
-        <h3>🏍️ Müsait Kuryeler</h3>
-        <div id="availableCouriers">
-          {couriers.map((c) => (
-            <div key={c.id} className="courier-card" style={{ background: '#f8f9fa', border: '2px solid #e9ecef' }}>
-              <div className="courier-status status-available" style={{ marginBottom: 8 }}>Müsait</div>
-              <div className="courier-info" style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12 }}>
-                <div className="courier-details">
-                  <h3 style={{ marginBottom: 8 }}>{c.name}</h3>
-                  <p>
-                    <strong>📍 Yakınlık:</strong> ~{c.distance} km
-                  </p>
-                  <p>
-                    <strong>📱 Telefon:</strong> {c.phone}
-                  </p>
-                </div>
-                <div className="distance-badge">Müsait</div>
-              </div>
-          </div>
-          ))}
-          {couriers.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek kurye yok</div>}
-        </div>
-      </div>
     </div>
   );
-}
-
-function estimateEarning(distanceKm) {
-  const base = 40;
-  const perKm = 5;
-  return Math.round(base + distanceKm * perKm);
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {

@@ -5,7 +5,6 @@ const CourierSchema = new mongoose.Schema({
   phone: { type: String },
   addressText: { type: String },
   district: { type: String },
-  neighborhood: { type: String },
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },
     coordinates: { type: [Number], default: [0, 0] } // [lng, lat]

@@ -10,10 +10,10 @@ const router = express.Router();
 
 router.post('/register/shop', async (req, res) => {
   try {
-    const { name, email, password, addressText, district, neighborhood } = req.body;
+    const { name, email, password, addressText, district } = req.body;
     const location = await geocodeAddressToPoint(addressText);
     const passwordHash = await bcrypt.hash(password, 10);
-    const shop = await Shop.create({ name, email, passwordHash, addressText, district, neighborhood, location });
+    const shop = await Shop.create({ name, email, passwordHash, addressText, district, location });
     const token = jwt.sign({ id: shop._id, role: 'shop' }, jwtSecret, { expiresIn: '7d' });
     res.json({ token });
   } catch (e) { res.status(400).json({ error: e.message }); }
@@ -21,10 +21,10 @@ router.post('/register/shop', async (req, res) => {
 
 router.post('/register/courier', async (req, res) => {
   try {
-    const { name, email, password, addressText, district, neighborhood, phone } = req.body;
+    const { name, email, password, addressText, district, phone } = req.body;
     const location = addressText ? await geocodeAddressToPoint(addressText) : { type: 'Point', coordinates: [0, 0] };
     const passwordHash = await bcrypt.hash(password, 10);
-    const courier = await Courier.create({ name, email, passwordHash, addressText, district, neighborhood, phone, location, active: false });
+    const courier = await Courier.create({ name, email, passwordHash, addressText, district, phone, location, active: false });
     const token = jwt.sign({ id: courier._id, role: 'courier' }, jwtSecret, { expiresIn: '7d' });
     res.json({ token });
   } catch (e) { res.status(400).json({ error: e.message }); }
