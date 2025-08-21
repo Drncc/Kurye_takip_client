@@ -8,8 +8,8 @@ const ShopSchema = new mongoose.Schema({
     type: { type: String, enum: ['Point'], default: 'Point' },
     coordinates: { type: [Number], required: true } // [lng, lat]
   },
-  email: { type: String, required: true, unique: true },
-  passwordHash: { type: String, required: true }
+  email: { type: String, required: true, unique: true, lowercase: true },
+  password: { type: String, required: true }
 }, { timestamps: true });
 
 ShopSchema.index({ location: '2dsphere' });

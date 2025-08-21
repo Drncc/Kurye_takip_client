@@ -70,11 +70,11 @@ export default function App() {
     localStorage.setItem('deliveryPro_user', JSON.stringify(uiUser));
     localStorage.setItem('deliveryPro_profile', JSON.stringify(serverProfile));
     
-    setRole(r);
-    setToken(tok);
-    setProfile(serverProfile);
-    setCurrentUser(uiUser);
-    setScreen('app');
+            setRole(r);
+            setToken(tok);
+            setProfile(serverProfile);
+            setCurrentUser(uiUser);
+            setScreen('app');
   };
 
   const handleLogout = () => {
@@ -148,7 +148,7 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
   const courierAddressRef = useRef(null);
   const courierDistrictRef = useRef(null);
 
-  return (
+    return (
     <div id="loginScreen" className="login-container">
       <div className="login-box">
         <h1 className="login-title">🚚 DeliveryPro</h1>
@@ -181,7 +181,7 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
           >
             🔐 Yönetici Paneli
           </button>
-        </div>
+          </div>
 
         {selectedRole && (
           <div className="mode-toggle">
@@ -202,14 +202,14 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
 
         {selectedRole === 'store' && (
           <div id="storeLogin" className="login-form active">
-            <div className="form-group">
-              <label htmlFor="storeEmail">E-posta:</label>
-              <input type="email" id="storeEmail" placeholder="ornek@site.com" ref={storeEmailRef} />
-            </div>
-            <div className="form-group">
-              <label htmlFor="storePassword">Şifre:</label>
-              <input type="password" id="storePassword" placeholder="••••••••" ref={storePasswordRef} />
-            </div>
+          <div className="form-group">
+            <label htmlFor="storeEmail">E-posta:</label>
+            <input type="email" id="storeEmail" placeholder="ornek@site.com" ref={storeEmailRef} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="storePassword">Şifre:</label>
+            <input type="password" id="storePassword" placeholder="••••••••" ref={storePasswordRef} />
+          </div>
             
             {!isLoginMode && (
               <>
@@ -253,11 +253,11 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
                     
-                    const token = d.token;
-                    const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
-                    const me = await meRes.json();
-                    const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
-                    onAuthenticated('store', token, me.me, uiUser);
+                  const token = d.token;
+                  const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
+                  const me = await meRes.json();
+                  const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
+                  onAuthenticated('store', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}!`);
                   } catch (e) { 
                     notify(e.message, 'error'); 
@@ -283,11 +283,11 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
                     
-                    const token = d.token;
-                    const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
-                    const me = await meRes.json();
-                    const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
-                    onAuthenticated('store', token, me.me, uiUser);
+                  const token = d.token;
+                  const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
+                  const me = await meRes.json();
+                  const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
+                  onAuthenticated('store', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}! Sipariş oluşturmaya başlayabilirsiniz.`);
                   } catch (e) { 
                     notify(e.message, 'error'); 
@@ -309,32 +309,19 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
             <div className="form-group">
               <label htmlFor="courierPassword">Şifre:</label>
               <input type="password" id="courierPassword" placeholder="••••••••" ref={courierPasswordRef} />
-            </div>
-            
+        </div>
+
             {!isLoginMode && (
               <>
-                <div className="form-group">
-                  <label htmlFor="courierName">Kurye Adı:</label>
-                  <input type="text" id="courierName" placeholder="Adınız Soyadınız" ref={courierNameRef} />
-                </div>
-                <div className="form-group">
+          <div className="form-group">
+            <label htmlFor="courierName">Kurye Adı:</label>
+            <input type="text" id="courierName" placeholder="Adınız Soyadınız" ref={courierNameRef} />
+          </div>
+          <div className="form-group">
                   <label htmlFor="courierPhone">Telefon:</label>
-                  <input type="tel" id="courierPhone" placeholder="05xx xxx xx xx" ref={courierPhoneRef} />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="courierDistrict">Semt:</label>
-                  <select id="courierDistrict" ref={courierDistrictRef}>
-                    <option value="">Semt seçin...</option>
-                    {ALANYA_DISTRICTS.map(district => (
-                      <option key={district} value={district}>{district}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="courierAddress">Detaylı Adres:</label>
-                  <input type="text" id="courierAddress" placeholder="Mahalle, sokak, bina no..." ref={courierAddressRef} />
-                </div>
-              </>
+            <input type="tel" id="courierPhone" placeholder="05xx xxx xx xx" ref={courierPhoneRef} />
+          </div>
+               </>
             )}
 
             <button
@@ -357,21 +344,21 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
                     
-                    const token = d.token;
-                    const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
-                    const me = await meRes.json();
+                  const token = d.token;
+                  const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
+                  const me = await meRes.json();
                     
-                    // GPS izni varsa konumu gönder ve aktif yap
-                    try {
-                      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
-                      if (pos) {
+                  // GPS izni varsa konumu gönder ve aktif yap
+                  try {
+                    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
+                    if (pos) {
                         await fetch(`${API}/couriers/location`, { 
                           method: 'POST', 
                           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
                           body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) 
                         });
-                      }
-                    } catch {}
+                    }
+                  } catch {}
                     
                     await fetch(`${API}/couriers/status`, { 
                       method: 'POST', 
@@ -379,28 +366,23 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                       body: JSON.stringify({ active: true }) 
                     });
                     
-                    const uiUser = { id: me.me._id, name: me.me.name, phone: me.me.phone || '-', location: me.me.addressText || '-', status: 'available' };
-                    onAuthenticated('courier', token, me.me, uiUser);
+                    const uiUser = { id: me.me._id, name: me.me.name, phone: me.me.phone || '-', location: 'GPS ile takip ediliyor', status: 'available' };
+                  onAuthenticated('courier', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}!`);
-                  } catch (e) { notify(e.message, 'error'); }
+                } catch (e) { notify(e.message, 'error'); }
                 } else {
                   // Kayıt
                   const name = (courierNameRef.current?.value || '').trim();
                   const phone = (courierPhoneRef.current?.value || '').trim();
-                  const district = (courierDistrictRef.current?.value || '').trim();
-                  const addressText = (courierAddressRef.current?.value || '').trim();
                   
                   if (!name) return notify('İsim zorunludur', 'error');
-                  if (!district) return notify('Semt seçimi zorunludur', 'error');
-                  if (!addressText) return notify('Adres zorunludur', 'error');
-                  
-                  const fullAddress = `${addressText}, ${district}`;
+                  if (!phone) return notify('Telefon zorunludur', 'error');
                   
                   try {
                     const r = await fetch(`${API}/auth/register/courier`, { 
                       method: 'POST', 
                       headers: { 'Content-Type': 'application/json' }, 
-                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district, phone }) 
+                      body: JSON.stringify({ name, email, password, phone }) 
                     });
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
@@ -427,7 +409,7 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                       body: JSON.stringify({ active: true }) 
                     });
                     
-                    const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
+                    const uiUser = { id: me.me._id, name: me.me.name, phone, location: 'GPS ile takip ediliyor', status: 'available' };
                     onAuthenticated('courier', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
                   } catch (e) { notify(e.message, 'error'); }
@@ -438,10 +420,10 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
             </button>
           </div>
         )}
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 function AdminPanel({ onLogout, notify }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -849,23 +831,33 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
         });
         const d = await r.json();
         if (r.ok) {
-          const withDistance = (d.couriers || []).map((c) => ({
-            id: c._id,
-            name: c.name,
-            phone: c.phone || '-',
-            location: c.addressText || 'Yakın',
-            status: 'available',
-            coordinates: c.location.coordinates,
-            distance: haversineKm(
-              profile.location.coordinates[1], // lat
-              profile.location.coordinates[0], // lng
-              c.location.coordinates[1],      // lat
-              c.location.coordinates[0]       // lng
-            ).toFixed(1)
-          }));
+          const withDistance = (d.couriers || []).map((c) => {
+            // Mesafe hesaplama
+            let distance = 0;
+            if (c.location?.coordinates && profile.location?.coordinates) {
+              distance = haversineKm(
+                profile.location.coordinates[1], // lat
+                profile.location.coordinates[0], // lng
+                c.location.coordinates[1],      // lat
+                c.location.coordinates[0]       // lng
+              );
+            }
+            
+            return {
+              id: c._id,
+              name: c.name,
+              phone: c.phone || '-',
+              location: 'GPS ile takip ediliyor',
+              status: 'available',
+              coordinates: c.location?.coordinates || [31.9957, 36.5441],
+              distance: distance.toFixed(1)
+            };
+          });
           setNearbyCouriers(withDistance);
         }
-      } catch {}
+      } catch (error) {
+        console.error('Nearby couriers fetch error:', error);
+      }
     };
     fetchNearby();
     const i = setInterval(fetchNearby, 5000); // 5 saniyede bir güncelle
@@ -874,36 +866,46 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
 
   // Fetch nearby shops for courier (her 10 saniyede bir)
   useEffect(() => {
-    if (role !== 'courier' || !token || !profile?.location) return;
+    if (role !== 'courier' || !token || !userLocation) return;
     const fetchNearbyShops = async () => {
       try {
         const r = await fetch(`${API}/shops/nearby`, { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-          body: JSON.stringify({ courierLocation: profile.location }) 
+          body: JSON.stringify({ courierLocation: { type: 'Point', coordinates: userLocation } }) 
         });
         const d = await r.json();
         if (r.ok) {
-          const withDistance = (d.shops || []).map((s) => ({
-            id: s._id,
-            name: s.name,
-            address: s.addressText,
-            coordinates: s.location.coordinates,
-            distance: haversineKm(
-              profile.location.coordinates[1], // lat
-              profile.location.coordinates[0], // lng
-              s.location.coordinates[1],      // lat
-              s.location.coordinates[0]       // lng
-            ).toFixed(1)
-          }));
+          const withDistance = (d.shops || []).map((s) => {
+            // Mesafe hesaplama
+            let distance = 0;
+            if (s.location?.coordinates && userLocation) {
+              distance = haversineKm(
+                userLocation[0], // lat
+                userLocation[1], // lng
+                s.location.coordinates[1], // lat
+                s.location.coordinates[0]  // lng
+              );
+            }
+            
+            return {
+              id: s._id,
+              name: s.name,
+              address: s.addressText,
+              coordinates: s.location?.coordinates || [31.9957, 36.5441],
+              distance: distance.toFixed(1)
+            };
+          });
           setNearbyShops(withDistance);
         }
-      } catch {}
+      } catch (error) {
+        console.error('Nearby shops fetch error:', error);
+      }
     };
     fetchNearbyShops();
     const i = setInterval(fetchNearbyShops, 10000);
     return () => clearInterval(i);
-  }, [role, token, profile]);
+  }, [role, token, userLocation]);
 
   const headerTitle = role === 'store' ? `🏪 ${currentUser.name}` : '🏍️ Kurye Paneli';
   const userInfo = role === 'store' ? `Dükkan: ${currentUser.name}` : `Kurye: ${currentUser.name}`;
@@ -948,16 +950,28 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
             <StoreContent
               onCreate={async (payload) => {
                 try {
-                  const r = await fetch(`${API}/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+                  const r = await fetch(`${API}/orders`, { 
+                    method: 'POST', 
+                    headers: { 
+                      'Content-Type': 'application/json', 
+                      Authorization: `Bearer ${token}` 
+                    }, 
+                    body: JSON.stringify(payload) 
+                  });
                   const d = await r.json();
                   if (!r.ok) throw new Error(d.error || 'Sipariş oluşturulamadı');
-                  setOrders((o) => [d.order, ...o]);
+                  
+                  // Yeni siparişi listeye ekle
+                  setOrders((prevOrders) => [d.order, ...prevOrders]);
+                  
                   if (d.assignedCourier) {
-                    notify(`Sipariş oluşturuldu. Atanan kurye: ${d.assignedCourier.name}`);
+                    notify(`✅ Sipariş oluşturuldu. Atanan kurye: ${d.assignedCourier.name}`);
                   } else {
-                    notify('Sipariş oluşturuldu. Şu an atama bekliyor.');
+                    notify('✅ Sipariş oluşturuldu. Şu an atama bekliyor.');
                   }
-                } catch (e) { notify(e.message, 'error'); }
+                } catch (e) { 
+                  notify(e.message, 'error'); 
+                }
               }}
               couriers={nearbyCouriers}
             />
@@ -971,7 +985,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                 >
                   {showMap ? '📋 Liste Görünümü' : '🗺️ Canlı Harita'}
                 </button>
-              </div>
+          </div>
               
               {showMap ? (
                 <div className="map-container">
@@ -1399,8 +1413,8 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
                                       body: JSON.stringify({ status: 'delivered' }) 
                                     });
-                                    setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'delivered' } : x)));
-                                    notify('✅ Sipariş başarıyla teslim edildi!');
+                                      setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'delivered' } : x)));
+                                      notify('✅ Sipariş başarıyla teslim edildi!');
                                   } catch (e) { notify('İşlem başarısız', 'error'); }
                                 }}
                               >
@@ -1470,7 +1484,7 @@ function StoreContent({ onCreate, couriers }) {
         <div className="form-group">
           <label htmlFor="packageDetails">Paket Detayları:</label>
           <textarea value={packageDetails} onChange={(e) => setPackageDetails(e.target.value)} id="packageDetails" rows={2} required />
-        </div>
+          </div>
         <div className="form-group">
           <label htmlFor="priority">Öncelik:</label>
           <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>

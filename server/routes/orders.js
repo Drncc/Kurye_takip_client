@@ -1,41 +1,40 @@
 const express = require('express');
-const { auth } = require('../middleware/auth');
 const Order = require('../models/Order');
-const Shop = require('../models/Shop');
-const Courier = require('../models/Courier'); // Added Courier import
-const { findNearestActiveCourier } = require('../services/assignment');
+const Shop = require('../models/shop');
+const Courier = require('../models/courier');
+const auth = require('../middleware/auth');
 
 const router = express.Router();
 
 // Yeni sipariş oluştur
-router.post('/', auth, async (req, res) => {
+router.post('/', auth('store'), async (req, res) => {
   try {
     const { customerName, customerPhone, deliveryAddress, deliveryDistrict, packageDetails, priority } = req.body;
     
-    if (req.user.role !== 'shop') {
-      return res.status(403).json({ error: 'Sadece dükkanlar sipariş oluşturabilir' });
+    if (!customerName || !customerPhone || !deliveryAddress || !deliveryDistrict || !packageDetails) {
+      return res.status(400).json({ error: 'Tüm alanlar zorunludur' });
     }
-    
-    // Dükkanın konum bilgisini al
+
+    // Dükkan bilgilerini al
     const shop = await Shop.findById(req.user.id);
-    if (!shop || !shop.location) {
-      return res.status(400).json({ error: 'Dükkan konum bilgisi bulunamadı' });
+    if (!shop) {
+      return res.status(404).json({ error: 'Dükkan bulunamadı' });
     }
-    
+
     // Sipariş oluştur
     const order = new Order({
       shop: req.user.id,
       customerName,
       customerPhone,
-      deliveryAddress,
+      deliveryAddress: `${deliveryAddress}, ${deliveryDistrict}`,
       deliveryDistrict,
       packageDetails,
       priority: priority || 'normal',
       status: 'pending'
     });
-    
+
     await order.save();
-    
+
     // En yakın müsait kuryeyi bul ve ata
     const nearbyCourier = await Courier.findOne({
       active: true,
@@ -45,8 +44,8 @@ router.post('/', auth, async (req, res) => {
           $maxDistance: 10000 // 10km
         }
       }
-    }).sort({ 'location.coordinates': 1 });
-    
+    });
+
     let assignedCourier = null;
     if (nearbyCourier) {
       order.assignedCourier = nearbyCourier._id;
@@ -60,39 +59,20 @@ router.post('/', auth, async (req, res) => {
         phone: nearbyCourier.phone
       };
     }
-    
+
     res.status(201).json({ 
-      message: 'Sipariş oluşturuldu', 
+      message: 'Sipariş oluşturuldu',
       order,
-      assignedCourier 
+      assignedCourier
     });
   } catch (error) {
-    console.error('Sipariş oluşturma hatası:', error);
+    console.error('Order creation error:', error);
     res.status(500).json({ error: 'Sipariş oluşturulamadı' });
   }
 });
 
-router.get('/mine', auth, async (req, res) => {
-  try {
-    if (req.user.role !== 'courier') {
-      return res.status(403).json({ error: 'Sadece kuryeler bu endpoint\'i kullanabilir' });
-    }
-    
-    const orders = await Order.find({ 
-      assignedCourier: req.user.id,
-      status: { $in: ['assigned', 'picked'] }
-    })
-    .populate('shop', 'name addressText')
-    .sort({ createdAt: -1 });
-    
-    res.json({ orders });
-  } catch (error) {
-    res.status(500).json({ error: 'Siparişler alınamadı' });
-  }
-});
-
 // Dükkan siparişlerini getir
-router.get('/store', auth, async (req, res) => {
+router.get('/store', auth('store'), async (req, res) => {
   try {
     const orders = await Order.find({ shop: req.user.id })
       .populate('assignedCourier', 'name phone')
@@ -100,11 +80,27 @@ router.get('/store', auth, async (req, res) => {
     
     res.json({ orders });
   } catch (error) {
+    console.error('Store orders fetch error:', error);
     res.status(500).json({ error: 'Siparişler alınamadı' });
   }
 });
 
 // Kurye siparişlerini getir
+router.get('/mine', auth('courier'), async (req, res) => {
+  try {
+    const orders = await Order.find({ 
+      assignedCourier: req.user.id,
+      status: { $in: ['assigned', 'picked'] }
+    })
+      .populate('shop', 'name addressText')
+      .sort({ createdAt: -1 });
+    
+    res.json({ orders });
+  } catch (error) {
+    console.error('Courier orders fetch error:', error);
+    res.status(500).json({ error: 'Siparişler alınamadı' });
+  }
+});
 
 // Sipariş durumunu güncelle
 router.post('/:id/status', auth(), async (req, res) => {
@@ -115,43 +111,56 @@ router.post('/:id/status', auth(), async (req, res) => {
     if (!order) {
       return res.status(404).json({ error: 'Sipariş bulunamadı' });
     }
-    
-    // Sadece dükkan sahibi veya atanan kurye durumu güncelleyebilir
-    if (req.user.role === 'shop' && order.shop.toString() !== req.user.id) {
-      return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+
+    // Yetki kontrolü
+    if (req.user.role === 'store' && order.shop.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Bu siparişi güncelleyemezsiniz' });
     }
     
     if (req.user.role === 'courier' && order.assignedCourier?.toString() !== req.user.id) {
-      return res.status(403).json({ error: 'Bu işlem için yetkiniz yok' });
+      return res.status(403).json({ error: 'Bu siparişi güncelleyemezsiniz' });
     }
-    
-    // Durum güncelleme kuralları
-    if (req.user.role === 'shop') {
+
+    // Durum geçiş kuralları
+    if (req.user.role === 'store') {
       // Dükkan sadece bekleyen siparişleri iptal edebilir
       if (status === 'cancelled' && order.status !== 'pending') {
         return res.status(400).json({ error: 'Sadece bekleyen siparişler iptal edilebilir' });
       }
-    }
-    
-    if (req.user.role === 'courier') {
-      // Kurye sadece atanan siparişleri güncelleyebilir
-      if (order.status === 'assigned' && status === 'picked') {
-        order.status = status;
-        order.pickedAt = new Date();
-      } else if (order.status === 'picked' && status === 'delivered') {
-        order.status = status;
-        order.deliveredAt = new Date();
-      } else {
-        return res.status(400).json({ error: 'Geçersiz durum güncellemesi' });
+    } else if (req.user.role === 'courier') {
+      // Kurye sadece atanan ve alınan siparişleri güncelleyebilir
+      if (!['assigned', 'picked'].includes(order.status)) {
+        return res.status(400).json({ error: 'Bu durumda sipariş güncellenemez' });
       }
-    } else {
-      order.status = status;
+      
+      if (status === 'picked' && order.status !== 'assigned') {
+        return res.status(400).json({ error: 'Sadece atanan siparişler alınabilir' });
+      }
+      
+      if (status === 'delivered' && order.status !== 'picked') {
+        return res.status(400).json({ error: 'Sadece alınan siparişler teslim edilebilir' });
+      }
     }
+
+    // Durumu güncelle
+    order.status = status;
     
+    // Zaman damgalarını güncelle
+    if (status === 'picked') {
+      order.pickedAt = new Date();
+    } else if (status === 'delivered') {
+      order.deliveredAt = new Date();
+      order.actualDeliveryTime = new Date();
+    }
+
     await order.save();
     
-    res.json({ message: 'Sipariş durumu güncellendi', order });
+    res.json({ 
+      message: 'Sipariş durumu güncellendi',
+      order 
+    });
   } catch (error) {
+    console.error('Order status update error:', error);
     res.status(500).json({ error: 'Durum güncellenemedi' });
   }
 });

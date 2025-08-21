@@ -1,6 +1,6 @@
 const express = require('express');
-const { auth } = require('../middleware/auth');
-const Courier = require('../models/Courier');
+const Courier = require('../models/courier');
+const auth = require('../middleware/auth');
 const { geocodeAddressToPoint } = require('../utils/geocode');
 
 const router = express.Router();
