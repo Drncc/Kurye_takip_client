@@ -186,7 +186,7 @@ function LoginScreen({ onAuthenticated, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
-                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available', rating: (4.5 + Math.random() * 0.5).toFixed(1), deliveries: Math.floor(Math.random() * 200) + 50 };
+                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
                   onAuthenticated('courier', token, me.me, uiUser);
                   notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
                 } catch (e) { notify(e.message, 'error'); }
@@ -206,7 +206,7 @@ function LoginScreen({ onAuthenticated, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
-                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: me.me.active ? 'available' : 'busy', rating: (4.5 + Math.random() * 0.5).toFixed(1), deliveries: Math.floor(Math.random() * 200) + 50 };
+                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: me.me.active ? 'available' : 'busy' };
                   onAuthenticated('courier', token, me.me, uiUser);
                   notify(`Hoş geldiniz ${me.me.name}!`);
                 } catch (e) { notify(e.message, 'error'); }
@@ -366,9 +366,6 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         <strong>📱 Telefon:</strong> <span id="courierDisplayPhone">{currentUser.phone}</span>
                       </p>
                       <p>
-                        <strong>⭐ Değerlendirme:</strong> {currentUser.rating || '4.8'}/5 ({currentUser.deliveries || 127} teslimat)
-                      </p>
-                      <p>
                         <strong>🕐 Aktif Süre:</strong> <span id="activeTime">{activeTime} dakika</span>
                       </p>
                     </div>
@@ -390,18 +387,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                     Durumu Değiştir
                   </button>
                 </div>
-                <div style={{ background: '#f8f9fa', padding: 15, borderRadius: 10, marginTop: 15 }}>
-                  <h4>📊 Bugünkü İstatistikler</h4>
-                  <p>
-                    ✅ Teslim Edilen: <span id="todayDelivered">{orders.filter((o) => o.status === 'delivered' && o.assignedCourier === currentUser.id).length}</span>
-                  </p>
-                  <p>
-                    💰 Kazanılan: <span id="todayEarned">{orders.filter((o) => o.status === 'delivered' && o.assignedCourier === currentUser.id).reduce((s, o) => s + estimateEarning(o.distance), 0)}</span> ₺
-                  </p>
-                  <p>
-                    📏 Kat Edilen Mesafe: <span id="todayDistance">{orders.filter((o) => o.status === 'delivered' && o.assignedCourier === currentUser.id).reduce((s, o) => s + o.distance, 0)}</span> km
-                  </p>
-                </div>
+                {/* İsteğe bağlı istatistikler ileride gerçek veriye bağlanınca gösterilecek */}
               </div>
             </div>
 
