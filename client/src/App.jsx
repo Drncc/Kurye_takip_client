@@ -256,6 +256,11 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
+                  
+                  if (!me.me) {
+                    throw new Error('Dükkan bilgileri alınamadı');
+                  }
+                  
                   const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
                   onAuthenticated('store', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}!`);
@@ -286,6 +291,11 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
+                  
+                  if (!me.me) {
+                    throw new Error('Dükkan bilgileri alınamadı');
+                  }
+                  
                   const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
                   onAuthenticated('store', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}! Sipariş oluşturmaya başlayabilirsiniz.`);
@@ -347,6 +357,10 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
+                    
+                  if (!me.me) {
+                    throw new Error('Kurye bilgileri alınamadı');
+                  }
                     
                   // GPS izni varsa konumu gönder ve aktif yap
                   try {
