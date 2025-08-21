@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -312,9 +312,7 @@ function LoginScreen({ onAuthenticated, notify }) {
                     const uiUser = { id: me.me._id, name: me.me.name, phone: me.me.phone || '-', location: me.me.addressText || '-', status: 'available' };
                     onAuthenticated('courier', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}!`);
-                  } catch (e) { 
-                    notify(e.message, 'error'); 
-                  }
+                  } catch (e) { notify(e.message, 'error'); }
                 } else {
                   // Kayıt
                   const name = (courierNameRef.current?.value || '').trim();
@@ -362,9 +360,7 @@ function LoginScreen({ onAuthenticated, notify }) {
                     const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
                     onAuthenticated('courier', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
-                  } catch (e) { 
-                    notify(e.message, 'error'); 
-                  }
+                  } catch (e) { notify(e.message, 'error'); }
                 }
               }}
             >
@@ -388,6 +384,8 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   const [mapCenter, setMapCenter] = useState([36.5441, 31.9957]); // Alanya merkez
   const [userLocation, setUserLocation] = useState(null);
   const [locationPermission, setLocationPermission] = useState('prompt'); // 'prompt', 'granted', 'denied'
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // GPS izni kontrolü ve konum alma
   useEffect(() => {
@@ -471,7 +469,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   }, [role, token]);
 
   // Server'a konum gönderme
-  const updateLocationOnServer = async (longitude, latitude) => {
+  const updateLocationOnServer = useCallback(async (longitude, latitude) => {
     try {
       await fetch(`${API}/couriers/location`, { 
         method: 'POST', 
@@ -481,10 +479,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
     } catch (error) {
       console.log('Server konum güncelleme hatası:', error);
     }
-  };
+  }, [token]);
 
   // GPS izni isteme
-  const requestLocationPermission = () => {
+  const requestLocationPermission = useCallback(() => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -507,7 +505,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
         }
       );
     }
-  };
+  }, [updateLocationOnServer, notify]);
 
   useEffect(() => {
     if (role === 'courier') {
@@ -527,13 +525,50 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
     if (role !== 'courier' || !token) return;
     const fetchOrders = async () => {
       try {
+        setLoading(true);
         const r = await fetch(`${API}/orders/mine`, { headers: { Authorization: `Bearer ${token}` } });
         const d = await r.json();
-        if (r.ok) setOrders(d.orders || []);
-      } catch {}
+        if (r.ok) {
+          setOrders(d.orders || []);
+          setError(null);
+        } else {
+          setError(d.error || 'Siparişler alınamadı');
+        }
+      } catch (error) {
+        setError('Siparişler yüklenirken hata oluştu');
+        console.error('Sipariş fetch hatası:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchOrders();
     const i = setInterval(fetchOrders, 8000);
+    return () => clearInterval(i);
+  }, [role, token]);
+
+  // Fetch store orders periodically
+  useEffect(() => {
+    if (role !== 'store' || !token) return;
+    const fetchStoreOrders = async () => {
+      try {
+        setLoading(true);
+        const r = await fetch(`${API}/orders/store`, { headers: { Authorization: `Bearer ${token}` } });
+        const d = await r.json();
+        if (r.ok) {
+          setOrders(d.orders || []);
+          setError(null);
+        } else {
+          setError(d.error || 'Siparişler alınamadı');
+        }
+      } catch (error) {
+        setError('Siparişler yüklenirken hata oluştu');
+        console.error('Dükkan sipariş fetch hatası:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStoreOrders();
+    const i = setInterval(fetchStoreOrders, 10000);
     return () => clearInterval(i);
   }, [role, token]);
 
@@ -619,6 +654,24 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
           </button>
         </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="error-banner">
+          <span>❌ {error}</span>
+          <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner">
+            <div className="spinner"></div>
+            <p>Yükleniyor...</p>
+          </div>
+        </div>
+      )}
 
       {role === 'store' && (
         <div id="storeInterface" style={{ display: 'block' }}>
@@ -723,6 +776,92 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                   {nearbyCouriers.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek kurye yok</div>}
                 </div>
               )}
+            </div>
+
+            {/* Dükkan Sipariş Geçmişi */}
+            <div style={{ marginTop: 30 }}>
+              <div className="panel-header">
+                <h3>📋 Sipariş Geçmişi</h3>
+                <p>Tüm siparişlerinizi takip edin</p>
+              </div>
+              <div className="panel-content">
+                <div id="storeOrders">
+                  {orders.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic', padding: 20 }}>
+                      Henüz sipariş yok. Yukarıdan yeni sipariş oluşturmaya başlayın!
+                    </p>
+                  ) : (
+                    orders.map((o) => (
+                      <div key={o._id || o.id} className="order-item">
+                        <div className="order-header">
+                          <div className="order-id">Sipariş #{String((o._id || o.id) || '').slice(-3)}</div>
+                          <span className={`priority-badge priority-${o.priority || 'normal'}`}>{(o.priority || 'normal').toUpperCase()}</span>
+                        </div>
+                        <div className="order-details">
+                          <div>
+                            <strong>Müşteri:</strong> {o.customerName || '-'}
+                          </div>
+                          <div>
+                            <strong>Telefon:</strong> {o.customerPhone || '-'}
+                          </div>
+                          <div>
+                            <strong>Adres:</strong> {o.deliveryAddress || '-'}
+                          </div>
+                          <div>
+                            <strong>Paket:</strong> {o.packageDetails || '-'}
+                          </div>
+                          <div>
+                            <strong>Durum:</strong> 
+                            <span className={`status-badge status-${o.status}`}>
+                              {o.status === 'pending' && '⏳ Bekliyor'}
+                              {o.status === 'assigned' && '🏍️ Kuryeye Atandı'}
+                              {o.status === 'picked' && '🚚 Paket Alındı'}
+                              {o.status === 'delivered' && '✅ Teslim Edildi'}
+                              {o.status === 'cancelled' && '❌ İptal Edildi'}
+                            </span>
+                          </div>
+                          {o.assignedCourier && (
+                            <div>
+                              <strong>Kurye:</strong> {o.assignedCourier.name} ({o.assignedCourier.phone || '-'})
+                            </div>
+                          )}
+                          <div>
+                            <strong>Oluşturulma:</strong> {new Date(o.createdAt || Date.now()).toLocaleString('tr-TR')}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          <a
+                            className="btn btn-warning"
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.deliveryAddress || '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            📍 Haritalarda Aç
+                          </a>
+                          {o.status === 'pending' && (
+                            <button
+                              className="btn btn-danger"
+                              onClick={async () => {
+                                try {
+                                  await fetch(`${API}/orders/${o._id || o.id}/status`, { 
+                                    method: 'POST', 
+                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                                    body: JSON.stringify({ status: 'cancelled' }) 
+                                  });
+                                  setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'cancelled' } : x)));
+                                  notify('❌ Sipariş iptal edildi.');
+                                } catch (e) { notify('İşlem başarısız', 'error'); }
+                              }}
+                            >
+                              ❌ İptal Et
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -942,7 +1081,13 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                               <strong>Adres:</strong> {o.deliveryAddress || '-'}
                             </div>
                             <div>
-                              <strong>Durum:</strong> {o.status}
+                              <strong>Durum:</strong> 
+                              <span className={`status-badge status-${o.status}`}>
+                                {o.status === 'assigned' && '📋 Atandı'}
+                                {o.status === 'picked' && '🚚 Paket Alındı'}
+                                {o.status === 'delivered' && '✅ Teslim Edildi'}
+                                {o.status === 'pending' && '⏳ Bekliyor'}
+                              </span>
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: 10 }}>
@@ -954,23 +1099,42 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                             >
                               📍 Haritalarda Aç
                             </a>
+                            
                             {o.status === 'assigned' && (
                               <button
                                 className="btn btn-success"
                                 onClick={async () => {
                                   try {
-                                    await fetch(`${API}/orders/${o._id || o.id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: 'picked' }) });
-                                    notify('🚚 Sipariş kabul edildi! Teslimat başlatılıyor...');
+                                    await fetch(`${API}/orders/${o._id || o.id}/status`, { 
+                                      method: 'POST', 
+                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                                      body: JSON.stringify({ status: 'picked' }) 
+                                    });
+                                    notify('🚚 Sipariş kabul edildi! Paket alındı, teslimat başlatılıyor...');
                                     setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'picked' } : x)));
-                                    setTimeout(async () => {
-                                      await fetch(`${API}/orders/${o._id || o.id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: 'delivered' }) });
-                                      setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'delivered' } : x)));
-                                      notify('✅ Sipariş başarıyla teslim edildi!');
-                                    }, 5000);
                                   } catch (e) { notify('İşlem başarısız', 'error'); }
                                 }}
                               >
-                                ✅ Kabul Et
+                                ✅ Paket Alındı
+                              </button>
+                            )}
+                            
+                            {o.status === 'picked' && (
+                              <button
+                                className="btn btn-primary"
+                                onClick={async () => {
+                                  try {
+                                    await fetch(`${API}/orders/${o._id || o.id}/status`, { 
+                                      method: 'POST', 
+                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                                      body: JSON.stringify({ status: 'delivered' }) 
+                                    });
+                                    setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'delivered' } : x)));
+                                    notify('✅ Sipariş başarıyla teslim edildi!');
+                                  } catch (e) { notify('İşlem başarısız', 'error'); }
+                                }}
+                              >
+                                🎯 Teslim Edildi
                               </button>
                             )}
                           </div>

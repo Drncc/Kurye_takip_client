@@ -1,20 +1,21 @@
 const mongoose = require('mongoose');
 
-const OrderSchema = new mongoose.Schema({
-  shopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true },
-  courierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Courier' },
-  status: { type: String, enum: ['pending', 'assigned', 'picked', 'delivered', 'cancelled'], default: 'pending' },
-  pickupLocation: {
-    type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: { type: [Number], required: true } // shop coords
-  },
-  // Delivery details
-  customerName: { type: String },
-  customerPhone: { type: String },
-  deliveryAddress: { type: String },
-  deliveryDistrict: { type: String },
+const orderSchema = new mongoose.Schema({
+  shop: { type: mongoose.Schema.Types.ObjectId, ref: 'Shop', required: true },
+  assignedCourier: { type: mongoose.Schema.Types.ObjectId, ref: 'Courier' },
+  customerName: { type: String, required: true },
+  customerPhone: { type: String, required: true },
+  deliveryAddress: { type: String, required: true },
+  deliveryDistrict: { type: String, required: true },
+  packageDetails: { type: String, required: true },
   priority: { type: String, enum: ['normal', 'urgent', 'express'], default: 'normal' },
-  notes: { type: String }
+  status: { type: String, enum: ['pending', 'assigned', 'picked', 'delivered', 'cancelled'], default: 'pending' },
+  createdAt: { type: Date, default: Date.now },
+  assignedAt: { type: Date },
+  pickedAt: { type: Date },
+  deliveredAt: { type: Date },
+  estimatedDeliveryTime: { type: Date },
+  actualDeliveryTime: { type: Date }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Order', OrderSchema);
+module.exports = mongoose.model('Order', orderSchema);
