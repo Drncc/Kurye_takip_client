@@ -10,4 +10,4 @@ function connectDb() {
     });
 }
 
-module.exports = { connectDb };
+module.exports = connectDb;

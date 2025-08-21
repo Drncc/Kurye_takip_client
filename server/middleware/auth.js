@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
-const { jwtSecret } = require('../config/env');
+
+const jwtSecret = process.env.JWT_SECRET || 'your-secret-key';
 
 function auth(requiredRole) {
   return (req, res, next) => {
@@ -18,4 +19,4 @@ function auth(requiredRole) {
   };
 }
 
-module.exports = { auth };
+module.exports = auth;
