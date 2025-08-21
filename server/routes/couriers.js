@@ -39,7 +39,7 @@ router.post('/nearby', auth('shop'), async (req, res) => {
       }
     }
   })
-    .select('name location createdAt')
+    .select('name location createdAt addressText phone')
     .limit(10)
     .lean();
   res.json({ couriers: items });

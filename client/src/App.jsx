@@ -1,5 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Leaflet marker icon fix
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
 const API = 'http://localhost:4000/api';
+
+// Alanya semt ve mahalle verileri
+const ALANYA_DISTRICTS = {
+  'Mahmutlar': ['Mahmutlar', 'Tosmur', 'Oba', 'Kestel'],
+  'Kleopatra': ['Kleopatra', 'Gullerpinari', 'Hacet', 'Kale'],
+  'Oba': ['Oba', 'Mahmutlar', 'Tosmur'],
+  'Tosmur': ['Tosmur', 'Mahmutlar', 'Oba'],
+  'Kestel': ['Kestel', 'Mahmutlar', 'Oba'],
+  'Gullerpinari': ['Gullerpinari', 'Kleopatra', 'Hacet'],
+  'Hacet': ['Hacet', 'Kleopatra', 'Gullerpinari'],
+  'Kale': ['Kale', 'Kleopatra', 'Hacet']
+};
 
 export default function App() {
   const [screen, setScreen] = useState('login');
@@ -59,8 +83,11 @@ export default function App() {
 
 function LoginScreen({ onAuthenticated, notify }) {
   const [selectedRole, setSelectedRole] = useState(null);
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const storeNameRef = useRef(null);
   const storeAddressRef = useRef(null);
+  const storeDistrictRef = useRef(null);
+  const storeNeighborhoodRef = useRef(null);
   const storeEmailRef = useRef(null);
   const storePasswordRef = useRef(null);
   const courierNameRef = useRef(null);
@@ -68,8 +95,18 @@ function LoginScreen({ onAuthenticated, notify }) {
   const courierEmailRef = useRef(null);
   const courierPasswordRef = useRef(null);
   const courierAddressRef = useRef(null);
+  const courierDistrictRef = useRef(null);
+  const courierNeighborhoodRef = useRef(null);
 
-    return (
+  const handleDistrictChange = (district, isStore) => {
+    if (isStore) {
+      storeNeighborhoodRef.current.value = '';
+    } else {
+      courierNeighborhoodRef.current.value = '';
+    }
+  };
+
+  return (
     <div id="loginScreen" className="login-container">
       <div className="login-box">
         <h1 className="login-title">🚚 DeliveryPro</h1>
@@ -86,162 +123,291 @@ function LoginScreen({ onAuthenticated, notify }) {
           </div>
         </div>
 
-        <div id="storeLogin" className={`login-form ${selectedRole === 'store' ? 'active' : ''}`}>
-          <div className="form-group">
-            <label htmlFor="storeName">Dükkan Adı:</label>
-            <input type="text" id="storeName" placeholder="Örn: Mehmet Market" ref={storeNameRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="storeAddress">Dükkan Adresi:</label>
-            <input type="text" id="storeAddress" placeholder="Tam adres..." ref={storeAddressRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="storeEmail">E-posta:</label>
-            <input type="email" id="storeEmail" placeholder="ornek@site.com" ref={storeEmailRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="storePassword">Şifre:</label>
-            <input type="password" id="storePassword" placeholder="••••••••" ref={storePasswordRef} />
-          </div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                const name = (storeNameRef.current?.value || '').trim();
-                const addressText = (storeAddressRef.current?.value || '').trim();
-                const email = (storeEmailRef.current?.value || '').trim();
-                const password = (storePasswordRef.current?.value || '').trim();
-                if (!name) return notify('Dükkan adı zorunludur', 'error');
-                if (!addressText) return notify('Dükkan adresi zorunludur', 'error');
-                if (!email) return notify('E-posta zorunludur', 'error');
-                if (!password) return notify('Şifre zorunludur', 'error');
-                try {
-                  const r = await fetch(`${API}/auth/register/shop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, addressText }) });
-                  const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
-                  const token = d.token;
-                  const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
-                  const me = await meRes.json();
-                  const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
-                  onAuthenticated('store', token, me.me, uiUser);
-                  notify(`Hoş geldiniz ${me.me.name}! Sipariş oluşturmaya başlayabilirsiniz.`);
-                } catch (e) { notify(e.message, 'error'); }
-              }}
-            >
-              📝 Kayıt Ol
-            </button>
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                const email = (storeEmailRef.current?.value || '').trim();
-                const password = (storePasswordRef.current?.value || '').trim();
-                if (!email) return notify('E-posta zorunludur', 'error');
-                if (!password) return notify('Şifre zorunludur', 'error');
-                try {
-                  const r = await fetch(`${API}/auth/login/shop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-                  const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
-                  const token = d.token;
-                  const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
-                  const me = await meRes.json();
-                  const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
-                  onAuthenticated('store', token, me.me, uiUser);
-                  notify(`Hoş geldiniz ${me.me.name}!`);
-                } catch (e) { notify(e.message, 'error'); }
-              }}
+        {selectedRole && (
+          <div className="mode-toggle">
+            <button 
+              className={`mode-btn ${isLoginMode ? 'active' : ''}`}
+              onClick={() => setIsLoginMode(true)}
             >
               🔑 Giriş Yap
             </button>
+            <button 
+              className={`mode-btn ${!isLoginMode ? 'active' : ''}`}
+              onClick={() => setIsLoginMode(false)}
+            >
+              📝 Kayıt Ol
+            </button>
           </div>
-        </div>
+        )}
 
-        <div id="courierLogin" className={`login-form ${selectedRole === 'courier' ? 'active' : ''}`}>
-          <div className="form-group">
-            <label htmlFor="courierName">Kurye Adı:</label>
-            <input type="text" id="courierName" placeholder="Adınız Soyadınız" ref={courierNameRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="courierPhone">Telefon (opsiyonel):</label>
-            <input type="tel" id="courierPhone" placeholder="05xx xxx xx xx" ref={courierPhoneRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="courierAddress">Adres (opsiyonel):</label>
-            <input type="text" id="courierAddress" placeholder="Tam adres" ref={courierAddressRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="courierEmail">E-posta:</label>
-            <input type="email" id="courierEmail" placeholder="ornek@site.com" ref={courierEmailRef} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="courierPassword">Şifre:</label>
-            <input type="password" id="courierPassword" placeholder="••••••••" ref={courierPasswordRef} />
-          </div>
-          <div style={{ display: 'grid', gap: 10 }}>
+        {selectedRole === 'store' && (
+          <div id="storeLogin" className="login-form active">
+            <div className="form-group">
+              <label htmlFor="storeEmail">E-posta:</label>
+              <input type="email" id="storeEmail" placeholder="ornek@site.com" ref={storeEmailRef} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="storePassword">Şifre:</label>
+              <input type="password" id="storePassword" placeholder="••••••••" ref={storePasswordRef} />
+            </div>
+            
+            {!isLoginMode && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="storeName">Dükkan Adı:</label>
+                  <input type="text" id="storeName" placeholder="Örn: Mehmet Market" ref={storeNameRef} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="storeDistrict">Semt:</label>
+                  <select id="storeDistrict" ref={storeDistrictRef} onChange={() => handleDistrictChange(storeDistrictRef.current.value, true)}>
+                    <option value="">Semt seçin...</option>
+                    {Object.keys(ALANYA_DISTRICTS).map(district => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="storeNeighborhood">Mahalle:</label>
+                  <select id="storeNeighborhood" ref={storeNeighborhoodRef}>
+                    <option value="">Önce semt seçin...</option>
+                    {storeDistrictRef.current?.value && ALANYA_DISTRICTS[storeDistrictRef.current.value]?.map(neighborhood => (
+                      <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="storeAddress">Detaylı Adres:</label>
+                  <input type="text" id="storeAddress" placeholder="Sokak, bina no, kat..." ref={storeAddressRef} />
+                </div>
+              </>
+            )}
+
             <button
               className="btn-primary"
               onClick={async () => {
-                const name = (courierNameRef.current?.value || '').trim();
-                const addressText = (courierAddressRef.current?.value || '').trim();
-                const email = (courierEmailRef.current?.value || '').trim();
-                const password = (courierPasswordRef.current?.value || '').trim();
-                const phone = (courierPhoneRef.current?.value || '').trim();
-                if (!name) return notify('İsim zorunludur', 'error');
+                const email = (storeEmailRef.current?.value || '').trim();
+                const password = (storePasswordRef.current?.value || '').trim();
+                
                 if (!email) return notify('E-posta zorunludur', 'error');
                 if (!password) return notify('Şifre zorunludur', 'error');
-                try {
-                  const r = await fetch(`${API}/auth/register/courier`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, addressText }) });
-                  const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
-                  const token = d.token;
-                  const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
-                  const me = await meRes.json();
-                  // GPS izni varsa konumu gönder ve aktif yap
+                
+                if (isLoginMode) {
+                  // Giriş
                   try {
-                    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
-                    if (pos) {
-                      await fetch(`${API}/couriers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) });
-                    }
-                  } catch {}
-                  await fetch(`${API}/couriers/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ active: true }) });
-                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
-                  onAuthenticated('courier', token, me.me, uiUser);
-                  notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
-                } catch (e) { notify(e.message, 'error'); }
+                    const r = await fetch(`${API}/auth/login/shop`, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify({ email, password }) 
+                    });
+                    const d = await r.json(); 
+                    if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
+                    
+                    const token = d.token;
+                    const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
+                    const me = await meRes.json();
+                    const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
+                    onAuthenticated('store', token, me.me, uiUser);
+                    notify(`Hoş geldiniz ${me.me.name}!`);
+                  } catch (e) { 
+                    notify(e.message, 'error'); 
+                  }
+                } else {
+                  // Kayıt
+                  const name = (storeNameRef.current?.value || '').trim();
+                  const district = (storeDistrictRef.current?.value || '').trim();
+                  const neighborhood = (storeNeighborhoodRef.current?.value || '').trim();
+                  const addressText = (storeAddressRef.current?.value || '').trim();
+                  
+                  if (!name) return notify('Dükkan adı zorunludur', 'error');
+                  if (!district) return notify('Semt seçimi zorunludur', 'error');
+                  if (!neighborhood) return notify('Mahalle seçimi zorunludur', 'error');
+                  if (!addressText) return notify('Detaylı adres zorunludur', 'error');
+                  
+                  const fullAddress = `${neighborhood}, ${district}, ${addressText}`;
+                  
+                  try {
+                    const r = await fetch(`${API}/auth/register/shop`, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district, neighborhood }) 
+                    });
+                    const d = await r.json(); 
+                    if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
+                    
+                    const token = d.token;
+                    const meRes = await fetch(`${API}/shops/me`, { headers: { Authorization: `Bearer ${token}` } });
+                    const me = await meRes.json();
+                    const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
+                    onAuthenticated('store', token, me.me, uiUser);
+                    notify(`Hoş geldiniz ${me.me.name}! Sipariş oluşturmaya başlayabilirsiniz.`);
+                  } catch (e) { 
+                    notify(e.message, 'error'); 
+                  }
+                }
               }}
             >
-              📝 Kayıt Ol
+              {isLoginMode ? '🔑 Giriş Yap' : '📝 Kayıt Ol'}
             </button>
+          </div>
+        )}
+
+        {selectedRole === 'courier' && (
+          <div id="courierLogin" className="login-form active">
+            <div className="form-group">
+              <label htmlFor="courierEmail">E-posta:</label>
+              <input type="email" id="courierEmail" placeholder="ornek@site.com" ref={courierEmailRef} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="courierPassword">Şifre:</label>
+              <input type="password" id="courierPassword" placeholder="••••••••" ref={courierPasswordRef} />
+            </div>
+            
+            {!isLoginMode && (
+              <>
+                <div className="form-group">
+                  <label htmlFor="courierName">Kurye Adı:</label>
+                  <input type="text" id="courierName" placeholder="Adınız Soyadınız" ref={courierNameRef} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="courierPhone">Telefon:</label>
+                  <input type="tel" id="courierPhone" placeholder="05xx xxx xx xx" ref={courierPhoneRef} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="courierDistrict">Semt:</label>
+                  <select id="courierDistrict" ref={courierDistrictRef} onChange={() => handleDistrictChange(courierDistrictRef.current.value, false)}>
+                    <option value="">Semt seçin...</option>
+                    {Object.keys(ALANYA_DISTRICTS).map(district => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="courierNeighborhood">Mahalle:</label>
+                  <select id="courierNeighborhood" ref={courierNeighborhoodRef}>
+                    <option value="">Önce semt seçin...</option>
+                    {courierDistrictRef.current?.value && ALANYA_DISTRICTS[courierDistrictRef.current.value]?.map(neighborhood => (
+                      <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="courierAddress">Detaylı Adres:</label>
+                  <input type="text" id="courierAddress" placeholder="Sokak, bina no, kat..." ref={courierAddressRef} />
+                </div>
+              </>
+            )}
+
             <button
               className="btn-primary"
               onClick={async () => {
                 const email = (courierEmailRef.current?.value || '').trim();
                 const password = (courierPasswordRef.current?.value || '').trim();
-                const phone = (courierPhoneRef.current?.value || '').trim();
-                try {
-                  const r = await fetch(`${API}/auth/login/courier`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-                  const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
-                  const token = d.token;
-                  const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
-                  const me = await meRes.json();
-                  // GPS izni varsa konumu gönder ve aktif yap
+                
+                if (!email) return notify('E-posta zorunludur', 'error');
+                if (!password) return notify('Şifre zorunludur', 'error');
+                
+                if (isLoginMode) {
+                  // Giriş
                   try {
-                    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
-                    if (pos) {
-                      await fetch(`${API}/couriers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) });
-                    }
-                  } catch {}
-                  await fetch(`${API}/couriers/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ active: true }) });
-                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
-                  onAuthenticated('courier', token, me.me, uiUser);
-                  notify(`Hoş geldiniz ${me.me.name}!`);
-                } catch (e) { notify(e.message, 'error'); }
+                    const r = await fetch(`${API}/auth/login/courier`, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify({ email, password }) 
+                    });
+                    const d = await r.json(); 
+                    if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
+                    
+                    const token = d.token;
+                    const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
+                    const me = await meRes.json();
+                    
+                    // GPS izni varsa konumu gönder ve aktif yap
+                    try {
+                      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
+                      if (pos) {
+                        await fetch(`${API}/couriers/location`, { 
+                          method: 'POST', 
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                          body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) 
+                        });
+                      }
+                    } catch {}
+                    
+                    await fetch(`${API}/couriers/status`, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                      body: JSON.stringify({ active: true }) 
+                    });
+                    
+                    const uiUser = { id: me.me._id, name: me.me.name, phone: me.me.phone || '-', location: me.me.addressText || '-', status: 'available' };
+                    onAuthenticated('courier', token, me.me, uiUser);
+                    notify(`Hoş geldiniz ${me.me.name}!`);
+                  } catch (e) { 
+                    notify(e.message, 'error'); 
+                  }
+                } else {
+                  // Kayıt
+                  const name = (courierNameRef.current?.value || '').trim();
+                  const phone = (courierPhoneRef.current?.value || '').trim();
+                  const district = (courierDistrictRef.current?.value || '').trim();
+                  const neighborhood = (courierNeighborhoodRef.current?.value || '').trim();
+                  const addressText = (courierAddressRef.current?.value || '').trim();
+                  
+                  if (!name) return notify('İsim zorunludur', 'error');
+                  if (!district) return notify('Semt seçimi zorunludur', 'error');
+                  if (!neighborhood) return notify('Mahalle seçimi zorunludur', 'error');
+                  if (!addressText) return notify('Detaylı adres zorunludur', 'error');
+                  
+                  const fullAddress = `${neighborhood}, ${district}, ${addressText}`;
+                  
+                  try {
+                    const r = await fetch(`${API}/auth/register/courier`, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district, neighborhood, phone }) 
+                    });
+                    const d = await r.json(); 
+                    if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
+                    
+                    const token = d.token;
+                    const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
+                    const me = await meRes.json();
+                    
+                    // GPS izni varsa konumu gönder ve aktif yap
+                    try {
+                      const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
+                      if (pos) {
+                        await fetch(`${API}/couriers/location`, { 
+                          method: 'POST', 
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                          body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) 
+                        });
+                      }
+                    } catch {}
+                    
+                    await fetch(`${API}/couriers/status`, { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                      body: JSON.stringify({ active: true }) 
+                    });
+                    
+                    const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
+                    onAuthenticated('courier', token, me.me, uiUser);
+                    notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
+                  } catch (e) { 
+                    notify(e.message, 'error'); 
+                  }
+                }
               }}
             >
-              🔑 Giriş Yap
+              {isLoginMode ? '🔑 Giriş Yap' : '📝 Kayıt Ol'}
             </button>
           </div>
-          </div>
-        </div>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
 const DIST_MATRIX = {
   Konyaaltı: { Konyaaltı: 2, Lara: 25, Muratpaşa: 12, Kepez: 18, Aksu: 30, Döşemealtı: 20 },
@@ -258,6 +424,9 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   const [activeTime, setActiveTime] = useState(0);
   const [isCourierActive, setIsCourierActive] = useState(currentUser?.status === 'available');
   const [nearbyCouriers, setNearbyCouriers] = useState([]);
+  const [nearbyShops, setNearbyShops] = useState([]);
+  const [showMap, setShowMap] = useState(false);
+  const [mapCenter, setMapCenter] = useState([36.5441, 31.9957]); // Alanya merkez
 
   useEffect(() => {
     if (role === 'courier') {
@@ -306,22 +475,67 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
     if (role !== 'store' || !token || !profile?.location) return;
     const fetchNearby = async () => {
       try {
-        const r = await fetch(`${API}/couriers/nearby`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ pickup: profile.location }) });
+        const r = await fetch(`${API}/couriers/nearby`, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+          body: JSON.stringify({ pickup: profile.location }) 
+        });
         const d = await r.json();
         if (r.ok) {
           const withDistance = (d.couriers || []).map((c) => ({
             id: c._id,
             name: c.name,
-            phone: '-',
-            location: 'Yakın',
+            phone: c.phone || '-',
+            location: c.addressText || 'Yakın',
             status: 'available',
-            distance: haversineKm(profile.location.coordinates[1], profile.location.coordinates[0], c.location.coordinates[1], c.location.coordinates[0]).toFixed(1)
+            coordinates: c.location.coordinates,
+            distance: haversineKm(
+              profile.location.coordinates[1], 
+              profile.location.coordinates[0], 
+              c.location.coordinates[1], 
+              c.location.coordinates[0]
+            ).toFixed(1)
           }));
           setNearbyCouriers(withDistance);
         }
       } catch {}
     };
     fetchNearby();
+    const i = setInterval(fetchNearby, 10000);
+    return () => clearInterval(i);
+  }, [role, token, profile]);
+
+  // Fetch nearby shops for courier
+  useEffect(() => {
+    if (role !== 'courier' || !token || !profile?.location) return;
+    const fetchNearbyShops = async () => {
+      try {
+        const r = await fetch(`${API}/shops/nearby`, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+          body: JSON.stringify({ courierLocation: profile.location }) 
+        });
+        const d = await r.json();
+        if (r.ok) {
+          const withDistance = (d.shops || []).map((s) => ({
+            id: s._id,
+            name: s.name,
+            address: s.addressText,
+            coordinates: s.location.coordinates,
+            distance: haversineKm(
+              profile.location.coordinates[1], 
+              profile.location.coordinates[0], 
+              s.location.coordinates[1], 
+              s.location.coordinates[0]
+            ).toFixed(1)
+          }));
+          setNearbyShops(withDistance);
+        }
+      } catch {}
+    };
+    fetchNearbyShops();
+    const i = setInterval(fetchNearbyShops, 15000);
+    return () => clearInterval(i);
   }, [role, token, profile]);
 
   const headerTitle = role === 'store' ? `🏪 ${currentUser.name}` : '🏍️ Kurye Paneli';
@@ -362,6 +576,82 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               }}
               couriers={nearbyCouriers}
             />
+            
+            <div style={{ marginTop: 30 }}>
+              <div className="map-toggle-container">
+                <h3>🏍️ Müsait Kuryeler</h3>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => setShowMap(!showMap)}
+                >
+                  {showMap ? '📋 Liste Görünümü' : '🗺️ Harita Görünümü'}
+                </button>
+              </div>
+              
+              {showMap ? (
+                <div className="map-container">
+                  <MapContainer 
+                    center={mapCenter} 
+                    zoom={12} 
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    />
+                    {/* Dükkan konumu */}
+                    {profile?.location?.coordinates && (
+                      <Marker position={[profile.location.coordinates[1], profile.location.coordinates[0]]}>
+                        <Popup>
+                          <strong>🏪 {currentUser.name}</strong><br/>
+                          Sizin konumunuz
+                        </Popup>
+                      </Marker>
+                    )}
+                    {/* Müsait kuryeler */}
+                    {nearbyCouriers.map((courier) => (
+                      <Marker 
+                        key={courier.id} 
+                        position={[courier.coordinates[1], courier.coordinates[0]]}
+                        icon={L.divIcon({
+                          className: 'courier-marker',
+                          html: '🏍️',
+                          iconSize: [30, 30],
+                          iconAnchor: [15, 15]
+                        })}
+                      >
+                        <Popup>
+                          <strong>🏍️ {courier.name}</strong><br/>
+                          Mesafe: {courier.distance} km<br/>
+                          Durum: Müsait
+                        </Popup>
+                      </Marker>
+                    ))}
+                  </MapContainer>
+                </div>
+              ) : (
+                <div id="availableCouriers">
+                  {nearbyCouriers.map((c) => (
+                    <div key={c.id} className="courier-card" style={{ background: '#f8f9fa', border: '2px solid #e9ecef' }}>
+                      <div className="courier-status status-available" style={{ marginBottom: 8 }}>Müsait</div>
+                      <div className="courier-info" style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12 }}>
+                        <div className="courier-details">
+                          <h3 style={{ marginBottom: 8 }}>{c.name}</h3>
+                          <p>
+                            <strong>📍 Yakınlık:</strong> ~{c.distance} km
+                          </p>
+                          <p>
+                            <strong>📱 Telefon:</strong> {c.phone}
+                          </p>
+                        </div>
+                        <div className="distance-badge">{c.distance} km</div>
+                      </div>
+                    </div>
+                  ))}
+                  {nearbyCouriers.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek kurye yok</div>}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -409,7 +699,97 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                     Durumu Değiştir
                   </button>
                 </div>
-                {/* İsteğe bağlı istatistikler ileride gerçek veriye bağlanınca gösterilecek */}
+              </div>
+            </div>
+
+            <div className="courier-panel">
+              <div className="panel-header">
+                <h2>🏪 Yakın Dükkanlar</h2>
+              </div>
+              <div className="panel-content">
+                <div className="map-toggle-container">
+                  <div>
+                    <h3>Size yakın dükkanları görüntüleyin</h3>
+                    <p>Mesafe bilgileri gerçek zamanlı güncellenir</p>
+                  </div>
+                  <button 
+                    className="btn btn-secondary"
+                    onClick={() => setShowMap(!showMap)}
+                  >
+                    {showMap ? '📋 Liste Görünümü' : '🗺️ Harita Görünümü'}
+                  </button>
+                </div>
+                
+                {showMap ? (
+                  <div className="map-container">
+                    <MapContainer 
+                      center={mapCenter} 
+                      zoom={12} 
+                      style={{ height: '100%', width: '100%' }}
+                    >
+                      <TileLayer
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      />
+                      {/* Kurye konumu */}
+                      {profile?.location?.coordinates && (
+                        <Marker 
+                          position={[profile.location.coordinates[1], profile.location.coordinates[0]]}
+                          icon={L.divIcon({
+                            className: 'courier-marker',
+                            html: '🏍️',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                          })}
+                        >
+                          <Popup>
+                            <strong>🏍️ {currentUser.name}</strong><br/>
+                            Sizin konumunuz
+                          </Popup>
+                        </Marker>
+                      )}
+                      {/* Yakın dükkanlar */}
+                      {nearbyShops.map((shop) => (
+                        <Marker 
+                          key={shop.id} 
+                          position={[shop.coordinates[1], shop.coordinates[0]]}
+                          icon={L.divIcon({
+                            className: 'shop-marker',
+                            html: '🏪',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                          })}
+                        >
+                          <Popup>
+                            <strong>🏪 {shop.name}</strong><br/>
+                            Mesafe: {shop.distance} km<br/>
+                            Adres: {shop.address}
+                          </Popup>
+                        </Marker>
+                      ))}
+                    </MapContainer>
+                  </div>
+                ) : (
+                  <div id="nearbyShops">
+                    {nearbyShops.map((shop) => (
+                      <div key={shop.id} className="shop-card">
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12 }}>
+                          <div>
+                            <h3 style={{ marginBottom: 8 }}>{shop.name}</h3>
+                            <p>
+                              <strong>📍 Mesafe:</strong> ~{shop.distance} km
+                            </p>
+                            <p>
+                              <strong>🏠 Adres:</strong> {shop.address}
+                            </p>
+                          </div>
+                          <div className="distance-badge">{shop.distance} km</div>
+                        </div>
+                      </div>
+                    ))}
+                    {nearbyShops.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek dükkan yok</div>}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -493,8 +873,13 @@ function StoreContent({ onCreate, couriers }) {
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryDistrict, setDeliveryDistrict] = useState('');
+  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
   const [packageDetails, setPackageDetails] = useState('');
   const [priority, setPriority] = useState('normal');
+
+  const handleDeliveryDistrictChange = (district) => {
+    setDeliveryNeighborhood('');
+  };
 
   return (
     <div className="store-content">
@@ -502,12 +887,14 @@ function StoreContent({ onCreate, couriers }) {
         id="orderForm"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!customerName || !customerPhone || !deliveryAddress || !deliveryDistrict || !packageDetails) return;
-          onCreate({ customerName, customerPhone, deliveryAddress, deliveryDistrict, packageDetails, priority });
+          if (!customerName || !customerPhone || !deliveryAddress || !deliveryDistrict || !deliveryNeighborhood || !packageDetails) return;
+          const fullDeliveryAddress = `${deliveryNeighborhood}, ${deliveryDistrict}, ${deliveryAddress}`;
+          onCreate({ customerName, customerPhone, deliveryAddress: fullDeliveryAddress, deliveryDistrict, deliveryNeighborhood, packageDetails, priority });
           setCustomerName('');
           setCustomerPhone('');
           setDeliveryAddress('');
           setDeliveryDistrict('');
+          setDeliveryNeighborhood('');
           setPackageDetails('');
           setPriority('normal');
         }}
@@ -521,25 +908,31 @@ function StoreContent({ onCreate, couriers }) {
           <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} type="tel" id="customerPhone" required />
         </div>
         <div className="form-group">
-          <label htmlFor="deliveryAddress">Teslimat Adresi:</label>
-          <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} id="deliveryAddress" rows={3} required />
+          <label htmlFor="deliveryDistrict">Teslimat Semti:</label>
+          <select id="deliveryDistrict" value={deliveryDistrict} onChange={(e) => handleDeliveryDistrictChange(e.target.value)} required>
+            <option value="">Semt seçin...</option>
+            {Object.keys(ALANYA_DISTRICTS).map(district => (
+              <option key={district} value={district}>{district}</option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
-          <label htmlFor="deliveryDistrict">Teslimat Semti:</label>
-          <select id="deliveryDistrict" value={deliveryDistrict} onChange={(e) => setDeliveryDistrict(e.target.value)} required>
-            <option value="">Semt seçin...</option>
-            <option value="Konyaaltı">Konyaaltı</option>
-            <option value="Lara">Lara</option>
-            <option value="Muratpaşa">Muratpaşa</option>
-            <option value="Kepez">Kepez</option>
-            <option value="Aksu">Aksu</option>
-            <option value="Döşemealtı">Döşemealtı</option>
+          <label htmlFor="deliveryNeighborhood">Teslimat Mahallesi:</label>
+          <select id="deliveryNeighborhood" value={deliveryNeighborhood} onChange={(e) => setDeliveryNeighborhood(e.target.value)} required>
+            <option value="">Önce semt seçin...</option>
+            {deliveryDistrict && ALANYA_DISTRICTS[deliveryDistrict]?.map(neighborhood => (
+              <option key={neighborhood} value={neighborhood}>{neighborhood}</option>
+            ))}
           </select>
+        </div>
+        <div className="form-group">
+          <label htmlFor="deliveryAddress">Detaylı Teslimat Adresi:</label>
+          <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} id="deliveryAddress" rows={3} placeholder="Sokak, bina no, kat..." required />
         </div>
         <div className="form-group">
           <label htmlFor="packageDetails">Paket Detayları:</label>
           <textarea value={packageDetails} onChange={(e) => setPackageDetails(e.target.value)} id="packageDetails" rows={2} required />
-          </div>
+        </div>
         <div className="form-group">
           <label htmlFor="priority">Öncelik:</label>
           <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
