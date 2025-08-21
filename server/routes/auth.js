@@ -33,9 +33,9 @@ router.post('/register/courier', async (req, res) => {
 router.post('/login/shop', async (req, res) => {
   const { email, password } = req.body;
   const shop = await Shop.findOne({ email });
-  if (!shop) return res.status(400).json({ error: 'Invalid credentials' });
+  if (!shop) return res.status(400).json({ error: 'E-posta veya şifre hatalı' });
   const ok = await bcrypt.compare(password, shop.passwordHash);
-  if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
+  if (!ok) return res.status(400).json({ error: 'E-posta veya şifre hatalı' });
   const token = jwt.sign({ id: shop._id, role: 'shop' }, jwtSecret, { expiresIn: '7d' });
   res.json({ token });
 });
@@ -43,9 +43,9 @@ router.post('/login/shop', async (req, res) => {
 router.post('/login/courier', async (req, res) => {
   const { email, password } = req.body;
   const courier = await Courier.findOne({ email });
-  if (!courier) return res.status(400).json({ error: 'Invalid credentials' });
+  if (!courier) return res.status(400).json({ error: 'E-posta veya şifre hatalı' });
   const ok = await bcrypt.compare(password, courier.passwordHash);
-  if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
+  if (!ok) return res.status(400).json({ error: 'E-posta veya şifre hatalı' });
   const token = jwt.sign({ id: courier._id, role: 'courier' }, jwtSecret, { expiresIn: '7d' });
   res.json({ token });
 });

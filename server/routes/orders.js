@@ -8,7 +8,7 @@ const router = express.Router();
 
 router.post('/', auth('shop'), async (req, res) => {
   const shop = await Shop.findById(req.user.id);
-  if (!shop) return res.status(400).json({ error: 'Shop not found' });
+  if (!shop) return res.status(400).json({ error: 'Dükkan bulunamadı' });
   const pickupLocation = shop.location;
   const courier = await findNearestActiveCourier(pickupLocation);
 

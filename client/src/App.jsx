@@ -111,7 +111,10 @@ function LoginScreen({ onAuthenticated, notify }) {
                 const addressText = (storeAddressRef.current?.value || '').trim();
                 const email = (storeEmailRef.current?.value || '').trim();
                 const password = (storePasswordRef.current?.value || '').trim();
-                if (!name || !addressText || !email || !password) return notify('Lütfen tüm alanları doldurun!', 'error');
+                if (!name) return notify('Dükkan adı zorunludur', 'error');
+                if (!addressText) return notify('Dükkan adresi zorunludur', 'error');
+                if (!email) return notify('E-posta zorunludur', 'error');
+                if (!password) return notify('Şifre zorunludur', 'error');
                 try {
                   const r = await fetch(`${API}/auth/register/shop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, addressText }) });
                   const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
@@ -131,7 +134,8 @@ function LoginScreen({ onAuthenticated, notify }) {
               onClick={async () => {
                 const email = (storeEmailRef.current?.value || '').trim();
                 const password = (storePasswordRef.current?.value || '').trim();
-                if (!email || !password) return notify('E-posta ve şifre gerekli', 'error');
+                if (!email) return notify('E-posta zorunludur', 'error');
+                if (!password) return notify('Şifre zorunludur', 'error');
                 try {
                   const r = await fetch(`${API}/auth/login/shop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
                   const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Giriş başarısız');
@@ -179,7 +183,9 @@ function LoginScreen({ onAuthenticated, notify }) {
                 const email = (courierEmailRef.current?.value || '').trim();
                 const password = (courierPasswordRef.current?.value || '').trim();
                 const phone = (courierPhoneRef.current?.value || '').trim();
-                if (!name || !email || !password) return notify('İsim, e-posta ve şifre gerekli', 'error');
+                if (!name) return notify('İsim zorunludur', 'error');
+                if (!email) return notify('E-posta zorunludur', 'error');
+                if (!password) return notify('Şifre zorunludur', 'error');
                 try {
                   const r = await fetch(`${API}/auth/register/courier`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password, addressText }) });
                   const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
