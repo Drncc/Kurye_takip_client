@@ -186,6 +186,14 @@ function LoginScreen({ onAuthenticated, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
+                  // GPS izni varsa konumu gönder ve aktif yap
+                  try {
+                    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
+                    if (pos) {
+                      await fetch(`${API}/couriers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) });
+                    }
+                  } catch {}
+                  await fetch(`${API}/couriers/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ active: true }) });
                   const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
                   onAuthenticated('courier', token, me.me, uiUser);
                   notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
@@ -206,7 +214,15 @@ function LoginScreen({ onAuthenticated, notify }) {
                   const token = d.token;
                   const meRes = await fetch(`${API}/couriers/me`, { headers: { Authorization: `Bearer ${token}` } });
                   const me = await meRes.json();
-                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: me.me.active ? 'available' : 'busy' };
+                  // GPS izni varsa konumu gönder ve aktif yap
+                  try {
+                    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { enableHighAccuracy: true, timeout: 5000 }));
+                    if (pos) {
+                      await fetch(`${API}/couriers/location`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ coords: { lng: pos.coords.longitude, lat: pos.coords.latitude } }) });
+                    }
+                  } catch {}
+                  await fetch(`${API}/couriers/status`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ active: true }) });
+                  const uiUser = { id: me.me._id, name: me.me.name, phone, location: me.me.addressText || '-', status: 'available' };
                   onAuthenticated('courier', token, me.me, uiUser);
                   notify(`Hoş geldiniz ${me.me.name}!`);
                 } catch (e) { notify(e.message, 'error'); }
