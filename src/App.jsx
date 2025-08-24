@@ -11,7 +11,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const API = 'http://localhost:4000/api';
+const API = 'https://kurye-takip-backend.onrender.com/api';
 
 // Alanya semtleri - sadece ana semtler
 const ALANYA_DISTRICTS = [
@@ -462,12 +462,12 @@ function AdminPanel({ onLogout, notify }) {
     setLoading(true);
     try {
       // Kuryeleri getir
-      const courierRes = await fetch('http://localhost:4000/api/couriers/all');
+      const courierRes = await fetch('https://kurye-takip-backend.onrender.com/api/couriers/all');
       const courierData = await courierRes.json();
       if (courierRes.ok) setCouriers(courierData.couriers || []);
 
       // Dükkanları getir
-      const shopRes = await fetch('http://localhost:4000/api/shops/all');
+              const shopRes = await fetch('https://kurye-takip-backend.onrender.com/api/shops/all');
       const shopData = await shopRes.json();
       if (shopRes.ok) setShops(shopData.shops || []);
     } catch (error) {
@@ -481,7 +481,7 @@ function AdminPanel({ onLogout, notify }) {
     if (!confirm('Bu kuryeyi silmek istediğinizden emin misiniz?')) return;
     
     try {
-      const res = await fetch(`http://localhost:4000/api/couriers/${id}`, {
+              const res = await fetch(`https://kurye-takip-backend.onrender.com/api/couriers/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -499,7 +499,7 @@ function AdminPanel({ onLogout, notify }) {
     if (!confirm('Bu dükkanı silmek istediğinizden emin misiniz?')) return;
     
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${id}`, {
+              const res = await fetch(`https://kurye-takip-backend.onrender.com/api/shops/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {
