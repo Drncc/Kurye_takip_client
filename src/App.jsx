@@ -374,16 +374,16 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                     }
                   } catch {}
                     
-                    await fetch(`${API}/couriers/status`, { 
-                      method: 'POST', 
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-                      body: JSON.stringify({ active: true }) 
-                    });
-                    
-                    const uiUser = { id: me.me._id, name: me.me.name, phone: me.me.phone || '-', location: 'GPS ile takip ediliyor', status: 'available' };
-                  onAuthenticated('courier', token, me.me, uiUser);
-                    notify(`Hoş geldiniz ${me.me.name}!`);
-                } catch (e) { notify(e.message, 'error'); }
+                                         await fetch(`${API}/couriers/status`, { 
+                       method: 'POST', 
+                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                       body: JSON.stringify({ active: true }) 
+                     });
+                     
+                     const uiUser = { id: me.me._id, name: me.me.name, phone: me.me.phone || '-', location: 'GPS ile takip ediliyor', status: 'available' };
+                     onAuthenticated('courier', token, me.me, uiUser);
+                     notify(`Hoş geldiniz ${me.me.name}! Sistem aktif, siparişler gelmeye başlayabilir.`);
+                 } catch (e) { notify(e.message, 'error'); }
                 } else {
                   // Kayıt
                   const name = (courierNameRef.current?.value || '').trim();
@@ -645,6 +645,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   useEffect(() => {
     if (role === 'courier' && currentUser) {
       setIsCourierActive(currentUser.status === 'available');
+      // Kurye aktifse otomatik olarak müsait yap
+      if (currentUser.status === 'available') {
+        setIsCourierActive(true);
+      }
     }
   }, [role, currentUser]);
 
@@ -672,6 +676,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
       // Konumu server'a gönder
       if (role === 'courier' && token) {
         await updateLocationOnServer(coords);
+        // İlk konum gönderildikten sonra sürekli güncelleme başlar
       }
       
       notify('📍 GPS konumu başarıyla alındı!', 'success');
@@ -698,17 +703,28 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
   }, [role, token]);
 
   // Server'a konum gönderme
-  const updateLocationOnServer = useCallback(async (longitude, latitude) => {
+  const updateLocationOnServer = useCallback(async (coords) => {
     try {
       await fetch(`${API}/couriers/location`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-        body: JSON.stringify({ coords: { lng: longitude, lat: latitude } }) 
+        body: JSON.stringify({ coords: { lng: coords[0], lat: coords[1] } }) 
       });
     } catch (error) {
       console.log('Server konum güncelleme hatası:', error);
     }
   }, [token]);
+
+  // Sürekli konum güncelleme (her 10 saniyede bir)
+  useEffect(() => {
+    if (role !== 'courier' || !token || !userLocation) return;
+    
+    const locationUpdateInterval = setInterval(() => {
+      updateLocationOnServer(userLocation);
+    }, 10000); // 10 saniyede bir
+
+    return () => clearInterval(locationUpdateInterval);
+  }, [role, token, userLocation, updateLocationOnServer]);
 
   useEffect(() => {
     if (role === 'courier') {
@@ -728,7 +744,6 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
     if (role !== 'courier' || !token) return;
     const fetchOrders = async () => {
       try {
-        setLoading(true);
         const r = await fetch(`${API}/orders/mine`, { headers: { Authorization: `Bearer ${token}` } });
         const d = await r.json();
         if (r.ok) {
@@ -740,12 +755,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
       } catch (error) {
         setError('Siparişler yüklenirken hata oluştu');
         console.error('Sipariş fetch hatası:', error);
-      } finally {
-        setLoading(false);
       }
     };
     fetchOrders();
-    const i = setInterval(fetchOrders, 8000);
+    const i = setInterval(fetchOrders, 5000); // 5 saniyede bir güncelle
     return () => clearInterval(i);
   }, [role, token]);
 
@@ -754,7 +767,6 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
     if (role !== 'store' || !token) return;
     const fetchStoreOrders = async () => {
       try {
-        setLoading(true);
         const r = await fetch(`${API}/orders/store`, { headers: { Authorization: `Bearer ${token}` } });
         const d = await r.json();
         if (r.ok) {
@@ -766,12 +778,10 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
       } catch (error) {
         setError('Siparişler yüklenirken hata oluştu');
         console.error('Dükkan sipariş fetch hatası:', error);
-      } finally {
-        setLoading(false);
       }
     };
     fetchStoreOrders();
-    const i = setInterval(fetchStoreOrders, 10000);
+    const i = setInterval(fetchStoreOrders, 8000); // 8 saniyede bir güncelle
     return () => clearInterval(i);
   }, [role, token]);
 
@@ -1270,6 +1280,18 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                         });
                         if (!r.ok) throw new Error('Durum güncellenemedi');
                         setIsCourierActive(newVal);
+                        
+                        // Durum güncellendikten sonra siparişleri yeniden fetch et
+                        if (newVal) {
+                          const ordersRes = await fetch(`${API}/orders/mine`, { 
+                            headers: { Authorization: `Bearer ${token}` } 
+                          });
+                          if (ordersRes.ok) {
+                            const ordersData = await ordersRes.json();
+                            setOrders(ordersData.orders || []);
+                          }
+                        }
+                        
                         notify(`Durumunuz "${newVal ? 'Müsait' : 'Meşgul'}" olarak güncellendi.`);
                       } catch (e) { 
                         notify(e.message, 'error'); 
@@ -1287,93 +1309,25 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                 <h2>🏪 Yakın Dükkanlar</h2>
               </div>
               <div className="panel-content">
-                <div className="map-toggle-container">
-                  <div>
-                    <h3>Size yakın dükkanları görüntüleyin</h3>
-                    <p>Mesafe bilgileri her 10 saniyede bir güncellenir</p>
-                  </div>
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={() => setShowMap(!showMap)}
-                  >
-                    {showMap ? '📋 Liste Görünümü' : '🗺️ Harita Görünümü'}
-                  </button>
-                </div>
-                
-                {showMap ? (
-                  <div className="map-container">
-                    <MapContainer 
-                      center={userLocation || mapCenter} 
-                      zoom={13} 
-                      style={{ height: '100%', width: '100%' }}
-                    >
-                      <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                      />
-                      {/* Kurye konumu - gerçek zamanlı */}
-                      {userLocation && (
-                        <Marker 
-                          position={userLocation}
-                          icon={L.divIcon({
-                            className: 'courier-marker',
-                            html: '🏍️',
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15]
-                          })}
-                        >
-                          <Popup>
-                            <strong>🏍️ {currentUser.name}</strong><br/>
-                            Sizin konumunuz (GPS)
-                          </Popup>
-                        </Marker>
-                      )}
-                      {/* Yakın dükkanlar */}
-                      {nearbyShops.map((shop) => (
-                        <Marker 
-                          key={shop.id} 
-                          position={[shop.coordinates[1], shop.coordinates[0]]}
-                          icon={L.divIcon({
-                            className: 'shop-marker',
-                            html: '🏪',
-                            iconSize: [30, 30],
-                            iconAnchor: [15, 15]
-                          })}
-                        >
-                          <Popup>
-                            <strong>🏪 {shop.name}</strong><br/>
-                            Mesafe: {shop.distance}<br/>
-                            Adres: {shop.address}
-                          </Popup>
-                        </Marker>
-                      ))}
-                    </MapContainer>
-                    <div className="map-info">
-                      <p>📍 Konumunuz GPS ile gerçek zamanlı takip ediliyor</p>
-                      <p>🏪 Dükkan konumları her 10 saniyede bir güncellenir</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div id="nearbyShops">
-                    {nearbyShops.map((shop) => (
-                      <div key={shop.id} className="shop-card">
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12 }}>
-                          <div>
-                            <h3 style={{ marginBottom: 8 }}>{shop.name}</h3>
-                            <p>
-                              <strong>📍 Mesafe:</strong> ~{shop.distance} km
-                            </p>
-                            <p>
-                              <strong>🏠 Adres:</strong> {shop.address}
-                            </p>
-                          </div>
-                          <div className="distance-badge">{shop.distance} km</div>
+                <div id="nearbyShops">
+                  {nearbyShops.map((shop) => (
+                    <div key={shop.id} className="shop-card">
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12 }}>
+                        <div>
+                          <h3 style={{ marginBottom: 8 }}>{shop.name}</h3>
+                          <p>
+                            <strong>📍 Mesafe:</strong> ~{shop.distance} km
+                          </p>
+                          <p>
+                            <strong>🏠 Adres:</strong> {shop.address}
+                          </p>
                         </div>
+                        <div className="distance-badge">{shop.distance} km</div>
                       </div>
-                    ))}
-                    {nearbyShops.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek dükkan yok</div>}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                  {nearbyShops.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek dükkan yok</div>}
+                </div>
               </div>
             </div>
 
