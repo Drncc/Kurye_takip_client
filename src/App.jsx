@@ -952,69 +952,102 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               couriers={nearbyCouriers}
             />
             
-            <div style={{ marginTop: 30 }}>
-              {/* Harita/Liste Toggle */}
-              <div className="view-toggle">
-                <button
-                  className={`toggle-btn ${!showMap ? 'active' : ''}`}
-                  onClick={() => setShowMap(false)}
-                >
-                  📋 Liste Görünümü
-                </button>
-                <button
-                  className={`toggle-btn ${showMap ? 'active' : ''}`}
-                  onClick={() => setShowMap(true)}
-                >
-                  🗺️ Harita Görünümü
-                </button>
-              </div>
-              
-              {showMap ? (
-                <div className="map-container">
-                  <MapContainer 
-                    center={mapCenter} 
-                    zoom={13} 
-                    style={{ height: '100%', width: '100%' }}
-                  >
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    />
-                    {/* Dükkan konumu */}
-                    {profile?.location?.coordinates && (
-                      <Marker position={[profile.location.coordinates[1], profile.location.coordinates[0]]}>
-                        <Popup>
-                          <strong>🏪 {currentUser.name}</strong><br/>
-                          Sizin konumunuz
-                        </Popup>
-                      </Marker>
-                    )}
-                                         {/* Müsait kuryeler - gerçek zamanlı */}
-                     {nearbyCouriers.map((courier) => (
-                       <Marker 
-                         key={courier.id} 
-                         position={[courier.coordinates[1], courier.coordinates[0]]}
-                         icon={L.divIcon({
-                           className: 'courier-marker',
-                           html: '🏍️',
-                           iconSize: [30, 30],
-                           iconAnchor: [15, 15]
-                         })}
-                       >
-                         <Popup>
-                           <strong>🏍️ {courier.name}</strong><br/>
-                           Mesafe: {courier.distance}<br/>
-                           Durum: Müsait<br/>
-                           📱 {courier.phone}
-                         </Popup>
-                       </Marker>
-                     ))}
-                     {/* Sipariş teslimat noktaları */}
+                         <div style={{ marginTop: 30 }}>
+               {/* Kurye Listesi ve Harita - Tek Görünüm */}
+               <div className="panel-header">
+                 <h3>🏍️ Müsait Kuryeler</h3>
+                 <p>Size en yakın kuryeleri görüntüleyin</p>
+               </div>
+               
+               {/* Kurye Listesi */}
+               <div id="availableCouriers" style={{ marginBottom: 20 }}>
+                 {nearbyCouriers.map((c) => (
+                   <div key={c.id} className="courier-card">
+                     <div className="courier-status status-available">Müsait</div>
+                     <div className="courier-info">
+                       <div className="courier-details">
+                         <h3>{c.name}</h3>
+                         <p>
+                           <strong>📍 Yakınlık:</strong> ~{c.distance} km
+                         </p>
+                         <p>
+                           <strong>📱 Telefon:</strong> {c.phone}
+                         </p>
+                       </div>
+                       <div className="distance-badge">{c.distance} km</div>
+                     </div>
+                   </div>
+                 ))}
+                 {nearbyCouriers.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek kurye yok</div>}
+               </div>
+               
+               {/* Harita Görünümü */}
+               <div className="map-container">
+                 <MapContainer 
+                   center={mapCenter} 
+                   zoom={13} 
+                   style={{ height: '400px', width: '100%' }}
+                 >
+                   <TileLayer
+                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                   />
+                   {/* Dükkan konumu */}
+                   {profile?.location?.coordinates && (
+                     <Marker position={[profile.location.coordinates[1], profile.location.coordinates[0]]}>
+                       <Popup>
+                         <strong>🏪 {currentUser.name}</strong><br/>
+                         Sizin konumunuz
+                       </Popup>
+                     </Marker>
+                   )}
+                   
+                   {/* Müsait kuryeler - gerçek zamanlı */}
+                   {nearbyCouriers.map((courier) => (
+                     <Marker 
+                       key={courier.id} 
+                       position={[courier.coordinates[1], courier.coordinates[0]]}
+                       icon={L.divIcon({
+                         className: 'courier-marker',
+                         html: '🏍️',
+                         iconSize: [30, 30],
+                         iconAnchor: [15, 15]
+                       })}
+                     >
+                       <Popup>
+                         <strong>🏍️ {courier.name}</strong><br/>
+                         Mesafe: {courier.distance}<br/>
+                         Durum: Müsait<br/>
+                         📱 {courier.phone}
+                       </Popup>
+                     </Marker>
+                   ))}
+                   
+                                        {/* Sipariş teslimat noktaları */}
                      {orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').map((order) => {
                        try {
-                         // Sipariş adresinden koordinat hesaplama (yaklaşık)
-                         const orderLat = 36.5441 + (Math.random() - 0.5) * 0.1; // Alanya merkez ± yaklaşık
-                         const orderLng = 31.9957 + (Math.random() - 0.5) * 0.1;
+                         // Sipariş koordinatları varsa kullan, yoksa semt bazlı hesapla
+                         let orderLat, orderLng;
+                         if (order.coordinates) {
+                           orderLat = order.coordinates.lat;
+                           orderLng = order.coordinates.lng;
+                         } else {
+                           // Semt bazlı yaklaşık koordinat
+                           const districtCoords = {
+                             'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                             'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                             'Oba': { lat: 36.5441, lng: 31.9957 },
+                             'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                             'Kestel': { lat: 36.5441, lng: 31.9957 },
+                             'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                             'Hacet': { lat: 36.5441, lng: 31.9957 },
+                             'Kale': { lat: 36.5441, lng: 31.9957 }
+                           };
+                           const baseCoords = districtCoords[order.deliveryDistrict] || { lat: 36.5441, lng: 31.9957 };
+                           orderLat = baseCoords.lat + (Math.random() - 0.5) * 0.05;
+                           orderLng = baseCoords.lng + (Math.random() - 0.5) * 0.05;
+                         }
+                         
                          return (
                            <Marker 
                              key={order._id || order.id} 
@@ -1040,36 +1073,15 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                          return null;
                        }
                      })}
-                   </MapContainer>
-                                     <div className="map-info">
-                     <p>📍 Müsait kuryelerin konumları her 5 saniyede bir güncellenir</p>
-                     <p>🏍️ Kurye ikonlarına tıklayarak detayları görün</p>
-                     <p>📦 Sipariş teslimat noktaları haritada gösterilir</p>
-                   </div>
-                </div>
-              ) : (
-                <div id="availableCouriers">
-                  {nearbyCouriers.map((c) => (
-                    <div key={c.id} className="courier-card">
-                      <div className="courier-status status-available">Müsait</div>
-                      <div className="courier-info">
-                        <div className="courier-details">
-                          <h3>{c.name}</h3>
-                          <p>
-                            <strong>📍 Yakınlık:</strong> ~{c.distance} km
-                          </p>
-                          <p>
-                            <strong>📱 Telefon:</strong> {c.phone}
-                          </p>
-                        </div>
-                        <div className="distance-badge">{c.distance} km</div>
-                      </div>
-                    </div>
-                  ))}
-                  {nearbyCouriers.length === 0 && <div style={{ color: '#666' }}>Şu anda listelenecek kurye yok</div>}
-                </div>
-              )}
-            </div>
+                 </MapContainer>
+                 
+                 <div className="map-info">
+                   <p>📍 Müsait kuryelerin konumları her 5 saniyede bir güncellenir</p>
+                   <p>🏍️ Kurye ikonlarına tıklayarak detayları görün</p>
+                   <p>📦 Sipariş teslimat noktaları haritada gösterilir</p>
+                 </div>
+               </div>
+             </div>
 
             {/* Dükkan Sipariş Geçmişi */}
             <div style={{ marginTop: 30 }}>
@@ -1121,52 +1133,90 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                                                      <div>
                              <strong>Oluşturulma:</strong> {new Date(o.createdAt || Date.now()).toLocaleString('tr-TR')}
                            </div>
-                           {/* Mesafe Bilgileri */}
-                           {o.store && o.store.location && o.deliveryAddress && (
-                             <div style={{ marginTop: 10, padding: 10, backgroundColor: '#f8f9fa', borderRadius: 8 }}>
-                               <h4 style={{ margin: '0 0 8px 0', color: '#333' }}>📍 Mesafe Bilgileri</h4>
-                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.9rem' }}>
-                                 <div>
-                                   <strong>🏪 Dükkana uzaklık:</strong> 
-                                   {(() => {
-                                     try {
-                                       // Sipariş adresinden koordinat hesaplama (yaklaşık)
-                                       const orderLat = 36.5441 + (Math.random() - 0.5) * 0.1; // Alanya merkez ± yaklaşık
-                                       const orderLng = 31.9957 + (Math.random() - 0.5) * 0.1;
-                                       const distance = haversineKm(
-                                         o.store.location.coordinates[1], // lat
-                                         o.store.location.coordinates[0], // lng
-                                         orderLat,
-                                         orderLng
-                                       );
-                                       return ` ~${distance.toFixed(1)} km`;
-                                     } catch (error) {
-                                       return ' Hesaplanamadı';
-                                     }
-                                   })()}
-                                 </div>
-                                 <div>
-                                   <strong>📦 Teslimat mesafesi:</strong> 
-                                   {(() => {
-                                     try {
-                                       // Sipariş adresinden koordinat hesaplama (yaklaşık)
-                                       const orderLat = 36.5441 + (Math.random() - 0.5) * 0.1; // Alanya merkez ± yaklaşık
-                                       const orderLng = 31.9957 + (Math.random() - 0.5) * 0.1;
-                                       const distance = haversineKm(
-                                         o.store.location.coordinates[1], // lat
-                                         o.store.location.coordinates[0], // lng
-                                         orderLat,
-                                         orderLng
-                                       );
-                                       return ` ~${distance.toFixed(1)} km`;
-                                     } catch (error) {
-                                       return ' Hesaplanamadı';
-                                     }
-                                   })()}
-                                 </div>
-                               </div>
-                             </div>
-                           )}
+                                                       {/* Mesafe Bilgileri */}
+                            {o.store && o.store.location && o.deliveryAddress && (
+                              <div style={{ marginTop: 10, padding: 10, backgroundColor: '#f8f9fa', borderRadius: 8 }}>
+                                <h4 style={{ margin: '0 0 8px 0', color: '#333' }}>📍 Mesafe Bilgileri</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.9rem' }}>
+                                  <div>
+                                    <strong>🏪 Dükkana uzaklık:</strong> 
+                                    {(() => {
+                                      try {
+                                        // Sipariş koordinatları varsa kullan, yoksa semt bazlı hesapla
+                                        let orderLat, orderLng;
+                                        if (o.coordinates) {
+                                          orderLat = o.coordinates.lat;
+                                          orderLng = o.coordinates.lng;
+                                        } else {
+                                          // Semt bazlı yaklaşık koordinat
+                                          const districtCoords = {
+                                            'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                                            'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                                            'Oba': { lat: 36.5441, lng: 31.9957 },
+                                            'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                                            'Kestel': { lat: 36.5441, lng: 31.9957 },
+                                            'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                                            'Hacet': { lat: 36.5441, lng: 31.9957 },
+                                            'Kale': { lat: 36.5441, lng: 31.9957 }
+                                          };
+                                          const baseCoords = districtCoords[o.deliveryDistrict] || { lat: 36.5441, lng: 31.9957 };
+                                          orderLat = baseCoords.lat + (Math.random() - 0.5) * 0.05;
+                                          orderLng = baseCoords.lng + (Math.random() - 0.5) * 0.05;
+                                        }
+                                        
+                                        const distance = haversineKm(
+                                          o.store.location.coordinates[1], // lat
+                                          o.store.location.coordinates[0], // lng
+                                          orderLat,
+                                          orderLng
+                                        );
+                                        return ` ~${distance.toFixed(1)} km`;
+                                      } catch (error) {
+                                        return ' Hesaplanamadı';
+                                      }
+                                    })()}
+                                  </div>
+                                  <div>
+                                    <strong>📦 Teslimat mesafesi:</strong> 
+                                    {(() => {
+                                      try {
+                                        // Sipariş koordinatları varsa kullan, yoksa semt bazlı hesapla
+                                        let orderLat, orderLng;
+                                        if (o.coordinates) {
+                                          orderLat = o.coordinates.lat;
+                                          orderLng = o.coordinates.lng;
+                                        } else {
+                                          // Semt bazlı yaklaşık koordinat
+                                          const districtCoords = {
+                                            'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                                            'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                                            'Oba': { lat: 36.5441, lng: 31.9957 },
+                                            'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                                            'Kestel': { lat: 36.5441, lng: 31.9957 },
+                                            'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                                            'Hacet': { lat: 36.5441, lng: 31.9957 },
+                                            'Kale': { lat: 36.5441, lng: 31.9957 }
+                                          };
+                                          const baseCoords = districtCoords[o.deliveryDistrict] || { lat: 36.5441, lng: 31.9957 };
+                                          orderLat = baseCoords.lat + (Math.random() - 0.5) * 0.05;
+                                          orderLng = baseCoords.lng + (Math.random() - 0.5) * 0.05;
+                                        }
+                                        
+                                        const distance = haversineKm(
+                                          o.store.location.coordinates[1], // lat
+                                          o.store.location.coordinates[0], // lng
+                                          orderLat,
+                                          orderLng
+                                        );
+                                        return ` ~${distance.toFixed(1)} km`;
+                                      } catch (error) {
+                                        return ' Hesaplanamadı';
+                                      }
+                                    })()}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                          </div>
                         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                           <a
@@ -1208,84 +1258,85 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
 
       
 
-      {role === 'courier' && (
-        <div id="courierInterface" style={{ display: 'block' }}>
-          <div className="courier-interface">
-            <div className="courier-panel">
-              <div className="panel-header">
-                <h2>📍 Durumum & GPS</h2>
-              </div>
-              <div className="panel-content">
-                {/* GPS İzin Kartı */}
-                {role === 'courier' && locationPermission !== 'granted' && (
-                  <div className="gps-permission-card">
-                    <h3>📍 GPS Konum İzni Gerekli</h3>
-                    <p>
-                      {locationPermission === 'denied' && 'GPS izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini verin.'}
-                      {locationPermission === 'unavailable' && 'GPS konumu bulunamadı. Lütfen GPS\'i açın.'}
-                      {locationPermission === 'timeout' && 'Konum alımı zaman aşımına uğradı. Lütfen tekrar deneyin.'}
-                      {locationPermission === 'error' && 'Konum bilgisi alınamadı. Lütfen GPS iznini verin.'}
-                      {locationPermission === 'prompt' && 'Kurye olarak çalışmak için GPS konum izni gereklidir.'}
-                    </p>
-                    <button 
-                      className="btn btn-primary"
-                      onClick={requestLocationPermission}
-                      disabled={locationPermission === 'requesting'}
-                    >
-                      {locationPermission === 'requesting' ? '📍 Konum Alınıyor...' : '📍 GPS İzni Ver'}
-                    </button>
-                  </div>
-                )}
-                
-                {locationPermission === 'granted' && userLocation && (
-                  <div className="gps-status-card success">
-                    <div className="gps-icon">✅</div>
-                    <div className="gps-info">
-                      <h3>GPS Aktif</h3>
-                      <p>Konumunuz gerçek zamanlı takip ediliyor</p>
-                      <small>Son güncelleme: {new Date().toLocaleTimeString('tr-TR')}</small>
-                    </div>
-                  </div>
-                )}
+             {role === 'courier' && (
+         <div id="courierInterface" style={{ display: 'block' }}>
+           <div className="courier-interface">
+             {/* GPS ve Durum Paneli */}
+             <div className="courier-panel">
+               <div className="panel-header">
+                 <h2>📍 Durumum & GPS</h2>
+               </div>
+               <div className="panel-content">
+                 {/* GPS İzin Kartı */}
+                 {role === 'courier' && locationPermission !== 'granted' && (
+                   <div className="gps-permission-card">
+                     <h3>📍 GPS Konum İzni Gerekli</h3>
+                     <p>
+                       {locationPermission === 'denied' && 'GPS izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini verin.'}
+                       {locationPermission === 'unavailable' && 'GPS konumu bulunamadı. Lütfen GPS\'i açın.'}
+                       {locationPermission === 'timeout' && 'Konum alımı zaman aşımına uğradı. Lütfen tekrar deneyin.'}
+                       {locationPermission === 'error' && 'Konum bilgisi alınamadı. Lütfen GPS iznini verin.'}
+                       {locationPermission === 'prompt' && 'Kurye olarak çalışmak için GPS konum izni gereklidir.'}
+                     </p>
+                     <button 
+                       className="btn btn-primary"
+                       onClick={requestLocationPermission}
+                       disabled={locationPermission === 'requesting'}
+                     >
+                       {locationPermission === 'requesting' ? '📍 Konum Alınıyor...' : '📍 GPS İzni Ver'}
+                     </button>
+                   </div>
+                 )}
+                 
+                 {locationPermission === 'granted' && userLocation && (
+                   <div className="gps-status-card success">
+                     <div className="gps-icon">✅</div>
+                     <div className="gps-info">
+                       <h3>GPS Aktif</h3>
+                       <p>Konumunuz gerçek zamanlı takip ediliyor</p>
+                       <small>Son güncelleme: {new Date().toLocaleTimeString('tr-TR')}</small>
+                     </div>
+                   </div>
+                 )}
 
-                <div className="courier-card">
-                  <div id="courierStatusBadge" className={`courier-status ${isCourierActive ? 'status-available' : 'status-busy'}`}>
-                    {isCourierActive ? 'Müsait' : 'Meşgul'}
-                  </div>
-                  <div className="courier-info">
-                    <div className="courier-details">
-                      <h3 id="courierDisplayName">{currentUser.name}</h3>
-                      <p>
-                        <strong>📍 Konum:</strong> <span id="courierDisplayLocation">{currentUser.location}</span>
-                      </p>
-                      <p>
-                        <strong>📱 Telefon:</strong> <span id="courierDisplayPhone">{currentUser.phone}</span>
-                      </p>
-                      <p>
-                        <strong>🕐 Aktif Süre:</strong> <span id="activeTime">{activeTime} dakika</span>
-                      </p>
-                      {locationPermission === 'granted' && (
-                        <p style={{ fontSize: '0.9rem', color: '#28a745', fontStyle: 'italic' }}>
-                          📍 GPS aktif - Konumunuz her 5 saniyede bir güncelleniyor
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    id="statusToggle"
-                    className={`btn ${isCourierActive ? 'btn-warning' : 'btn-success'}`}
-                    onClick={async () => {
-                      try {
-                        const newVal = !isCourierActive;
-                        const r = await fetch(`${API}/couriers/status`, { 
-                          method: 'POST', 
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-                          body: JSON.stringify({ active: newVal }) 
-                        });
-                        if (!r.ok) throw new Error('Durum güncellenemedi');
-                        setIsCourierActive(newVal);
-                        
-                                                 // Durum güncellendikten sonra siparişleri yeniden fetch et
+                 <div className="courier-card">
+                   <div id="courierStatusBadge" className={`courier-status ${isCourierActive ? 'status-available' : 'status-busy'}`}>
+                     {isCourierActive ? 'Müsait' : 'Meşgul'}
+                   </div>
+                   <div className="courier-info">
+                     <div className="courier-details">
+                       <h3 id="courierDisplayName">{currentUser.name}</h3>
+                       <p>
+                         <strong>📍 Konum:</strong> <span id="courierDisplayLocation">{currentUser.location}</span>
+                       </p>
+                       <p>
+                         <strong>📱 Telefon:</strong> <span id="courierDisplayPhone">{currentUser.phone}</span>
+                       </p>
+                       <p>
+                         <strong>🕐 Aktif Süre:</strong> <span id="activeTime">{activeTime} dakika</span>
+                       </p>
+                       {locationPermission === 'granted' && (
+                         <p style={{ fontSize: '0.9rem', color: '#28a745', fontStyle: 'italic' }}>
+                           📍 GPS aktif - Konumunuz her 10 saniyede bir güncelleniyor
+                         </p>
+                       )}
+                     </div>
+                   </div>
+                   <button
+                     id="statusToggle"
+                     className={`btn ${isCourierActive ? 'btn-warning' : 'btn-success'}`}
+                     onClick={async () => {
+                       try {
+                         const newVal = !isCourierActive;
+                         const r = await fetch(`${API}/couriers/status`, { 
+                           method: 'POST', 
+                           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                           body: JSON.stringify({ active: newVal }) 
+                         });
+                         if (!r.ok) throw new Error('Durum güncellenemedi');
+                         setIsCourierActive(newVal);
+                         
+                         // Durum güncellendikten sonra siparişleri yeniden fetch et
                          if (newVal) {
                            // Hemen siparişleri fetch et
                            const ordersRes = await fetch(`${API}/orders/mine`, { 
@@ -1300,20 +1351,21 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                            // Meşgul yapıldığında siparişleri temizle
                            setOrders([]);
                          }
-                        
-                        notify(`Durumunuz "${newVal ? 'Müsait' : 'Meşgul'}" olarak güncellendi.`);
-                      } catch (e) { 
-                        notify(e.message, 'error'); 
-                      }
-                    }}
-                  >
-                    {isCourierActive ? 'Meşgul Yap' : 'Müsait Yap'}
-                  </button>
-                </div>
-              </div>
-            </div>
+                         
+                         notify(`Durumunuz "${newVal ? 'Müsait' : 'Meşgul'}" olarak güncellendi.`);
+                       } catch (e) { 
+                         notify(e.message, 'error'); 
+                       }
+                     }}
+                   >
+                     {isCourierActive ? 'Meşgul Yap' : 'Müsait Yap'}
+                   </button>
+                 </div>
+               </div>
+             </div>
 
-                         <div className="courier-panel">
+             {/* Yakın Dükkanlar Paneli */}
+             <div className="courier-panel">
                <div className="panel-header">
                  <h2>🏪 Yakın Dükkanlar</h2>
                </div>
@@ -1340,26 +1392,27 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                </div>
              </div>
 
-            <div className="courier-panel">
-              <div className="panel-header">
-                <h2>📋 Siparişler</h2>
-              </div>
-              <div className="panel-content">
-                <div id="courierOrders">
-                  {orders.filter((o) => o.status !== 'delivered').length === 0 ? (
-                    <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic', padding: 20 }}>
-                      Henüz sipariş yok. Durumunuzu "Müsait" yapın ve siparişler gelmeye başlasın!
-                    </p>
-                  ) : (
-                    orders
-                      .filter((o) => o.status !== 'delivered')
-                      .map((o) => (
-                        <div key={o._id || o.id} className="order-item">
-                          <div className="order-header">
-                            <div className="order-id">Sipariş #{String((o._id || o.id) || '').slice(-3)}</div>
-                            <span className={`priority-badge priority-${o.priority || 'normal'}`}>{(o.priority || 'normal').toUpperCase()}</span>
-                          </div>
-                                                     <div className="order-details">
+             {/* Siparişler Paneli */}
+             <div className="courier-panel">
+               <div className="panel-header">
+                 <h2>📋 Siparişler</h2>
+               </div>
+               <div className="panel-content">
+                 <div id="courierOrders">
+                   {orders.filter((o) => o.status !== 'delivered').length === 0 ? (
+                     <p style={{ textAlign: 'center', color: '#666', fontStyle: 'italic', padding: 20 }}>
+                       Henüz sipariş yok. Durumunuzu "Müsait" yapın ve siparişler gelmeye başlasın!
+                     </p>
+                   ) : (
+                     orders
+                       .filter((o) => o.status !== 'delivered')
+                       .map((o) => (
+                         <div key={o._id || o.id} className="order-item">
+                           <div className="order-header">
+                             <div className="order-id">Sipariş #{String((o._id || o.id) || '').slice(-3)}</div>
+                             <span className={`priority-badge priority-${o.priority || 'normal'}`}>{(o.priority || 'normal').toUpperCase()}</span>
+                           </div>
+                           <div className="order-details">
                              <div>
                                <strong>Müşteri:</strong> {o.customerName || '-'}
                              </div>
@@ -1403,9 +1456,28 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                                      <strong>📦 Siparişe uzaklık:</strong> 
                                      {(() => {
                                        try {
-                                         // Sipariş adresinden koordinat hesaplama (yaklaşık)
-                                         const orderLat = 36.5441 + (Math.random() - 0.5) * 0.1; // Alanya merkez ± yaklaşık
-                                         const orderLng = 31.9957 + (Math.random() - 0.5) * 0.1;
+                                         // Sipariş koordinatları varsa kullan, yoksa semt bazlı hesapla
+                                         let orderLat, orderLng;
+                                         if (o.coordinates) {
+                                           orderLat = o.coordinates.lat;
+                                           orderLng = o.coordinates.lng;
+                                         } else {
+                                           // Semt bazlı yaklaşık koordinat
+                                           const districtCoords = {
+                                             'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                                             'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                                             'Oba': { lat: 36.5441, lng: 31.9957 },
+                                             'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                                             'Kestel': { lat: 36.5441, lng: 31.9957 },
+                                             'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                                             'Hacet': { lat: 36.5441, lng: 31.9957 },
+                                             'Kale': { lat: 36.5441, lng: 31.9957 }
+                                           };
+                                           const baseCoords = districtCoords[o.deliveryDistrict] || { lat: 36.5441, lng: 31.9957 };
+                                           orderLat = baseCoords.lat + (Math.random() - 0.5) * 0.05;
+                                           orderLng = baseCoords.lng + (Math.random() - 0.5) * 0.05;
+                                         }
+                                         
                                          const distance = haversineKm(
                                            userLocation[1], // lat
                                            userLocation[0], // lng
@@ -1422,63 +1494,63 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                                </div>
                              )}
                            </div>
-                          <div style={{ display: 'flex', gap: 10 }}>
-                            <a
-                              className="btn btn-warning"
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.deliveryAddress || '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              📍 Haritalarda Aç
-                            </a>
-                            
-                            {o.status === 'assigned' && (
-                              <button
-                                className="btn btn-success"
-                                onClick={async () => {
-                                  try {
-                                    await fetch(`${API}/orders/${o._id || o.id}/status`, { 
-                                      method: 'POST', 
-                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-                                      body: JSON.stringify({ status: 'picked' }) 
-                                    });
-                                    notify('🚚 Sipariş kabul edildi! Paket alındı, teslimat başlatılıyor...');
-                                    setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'picked' } : x)));
-                                  } catch (e) { notify('İşlem başarısız', 'error'); }
-                                }}
-                              >
-                                ✅ Paket Alındı
-                              </button>
-                            )}
-                            
-                            {o.status === 'picked' && (
-                              <button
-                                className="btn btn-primary"
-                                onClick={async () => {
-                                  try {
-                                    await fetch(`${API}/orders/${o._id || o.id}/status`, { 
-                                      method: 'POST', 
-                                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
-                                      body: JSON.stringify({ status: 'delivered' }) 
-                                    });
-                                      setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'delivered' } : x)));
-                                      notify('✅ Sipariş başarıyla teslim edildi!');
-                                  } catch (e) { notify('İşlem başarısız', 'error'); }
-                                }}
-                              >
-                                🎯 Teslim Edildi
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                           <div style={{ display: 'flex', gap: 10 }}>
+                             <a
+                               className="btn btn-warning"
+                               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.deliveryAddress || '')}`}
+                               target="_blank"
+                               rel="noreferrer"
+                             >
+                               📍 Haritalarda Aç
+                             </a>
+                             
+                             {o.status === 'assigned' && (
+                               <button
+                                 className="btn btn-success"
+                                 onClick={async () => {
+                                   try {
+                                     await fetch(`${API}/orders/${o._id || o.id}/status`, { 
+                                       method: 'POST', 
+                                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                                       body: JSON.stringify({ status: 'picked' }) 
+                                     });
+                                     notify('🚚 Sipariş kabul edildi! Paket alındı, teslimat başlatılıyor...');
+                                     setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'picked' } : x)));
+                                   } catch (e) { notify('İşlem başarısız', 'error'); }
+                                 }}
+                               >
+                                 ✅ Paket Alındı
+                               </button>
+                             )}
+                             
+                             {o.status === 'picked' && (
+                               <button
+                                 className="btn btn-primary"
+                                 onClick={async () => {
+                                   try {
+                                     await fetch(`${API}/orders/${o._id || o.id}/status`, { 
+                                       method: 'POST', 
+                                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                                       body: JSON.stringify({ status: 'delivered' }) 
+                                     });
+                                       setOrders((os) => os.map((x) => ((x._id || x.id) === (o._id || o.id) ? { ...x, status: 'delivered' } : x)));
+                                       notify('✅ Sipariş başarıyla teslim edildi!');
+                                   } catch (e) { notify('İşlem başarısız', 'error'); }
+                                 }}
+                               >
+                                 🎯 Teslim Edildi
+                               </button>
+                             )}
+                           </div>
+                         </div>
+                       ))
+                   )}
+                 </div>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 }
@@ -1490,16 +1562,77 @@ function StoreContent({ onCreate, couriers }) {
   const [deliveryDistrict, setDeliveryDistrict] = useState('');
   const [packageDetails, setPackageDetails] = useState('');
   const [priority, setPriority] = useState('normal');
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  // Google Maps'ten adres koordinatlarını al
+  const getAddressCoordinates = async (address) => {
+    try {
+      setIsLoadingAddress(true);
+      // Google Maps Geocoding API kullanarak adres koordinatlarını al
+      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=YOUR_GOOGLE_MAPS_API_KEY`);
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        const location = data.results[0].geometry.location;
+        return { lat: location.lat, lng: location.lng };
+      }
+      return null;
+    } catch (error) {
+      console.error('Adres koordinat hatası:', error);
+      return null;
+    } finally {
+      setIsLoadingAddress(false);
+    }
+  };
+
+  // Basit adres koordinat hesaplama (Google Maps API olmadan)
+  const getSimpleCoordinates = (district) => {
+    // Alanya semtlerine göre yaklaşık koordinatlar
+    const districtCoords = {
+      'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+      'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+      'Oba': { lat: 36.5441, lng: 31.9957 },
+      'Tosmur': { lat: 36.5441, lng: 31.9957 },
+      'Kestel': { lat: 36.5441, lng: 31.9957 },
+      'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+      'Hacet': { lat: 36.5441, lng: 31.9957 },
+      'Kale': { lat: 36.5441, lng: 31.9957 }
+    };
+    
+    // Seçilen semte göre koordinat + rastgele offset
+    const baseCoords = districtCoords[district] || { lat: 36.5441, lng: 31.9957 };
+    return {
+      lat: baseCoords.lat + (Math.random() - 0.5) * 0.05,
+      lng: baseCoords.lng + (Math.random() - 0.5) * 0.05
+    };
+  };
 
   return (
     <div className="store-content">
       <form
         id="orderForm"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           if (!customerName || !customerPhone || !deliveryAddress || !deliveryDistrict || !packageDetails) return;
+          
           const fullDeliveryAddress = `${deliveryAddress}, ${deliveryDistrict}`;
-          onCreate({ customerName, customerPhone, deliveryAddress: fullDeliveryAddress, deliveryDistrict, packageDetails, priority });
+          
+          // Adres koordinatlarını hesapla
+          const coordinates = getSimpleCoordinates(deliveryDistrict);
+          
+          const orderData = {
+            customerName,
+            customerPhone,
+            deliveryAddress: fullDeliveryAddress,
+            deliveryDistrict,
+            packageDetails,
+            priority,
+            coordinates // Koordinatları da gönder
+          };
+          
+          onCreate(orderData);
+          
+          // Formu temizle
           setCustomerName('');
           setCustomerPhone('');
           setDeliveryAddress('');
@@ -1509,15 +1642,15 @@ function StoreContent({ onCreate, couriers }) {
         }}
       >
         <div className="form-group">
-          <label htmlFor="customerName">Müşteri Adı:</label>
+          <label htmlFor="customerName">Müşteri Adı: <span style={{ color: 'red' }}>*</span></label>
           <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} type="text" id="customerName" required />
         </div>
         <div className="form-group">
-          <label htmlFor="customerPhone">Müşteri Telefon:</label>
+          <label htmlFor="customerPhone">Müşteri Telefon: <span style={{ color: 'red' }}>*</span></label>
           <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} type="tel" id="customerPhone" required />
         </div>
         <div className="form-group">
-          <label htmlFor="deliveryDistrict">Teslimat Semti:</label>
+          <label htmlFor="deliveryDistrict">Teslimat Semti: <span style={{ color: 'red' }}>*</span></label>
           <select id="deliveryDistrict" value={deliveryDistrict} onChange={(e) => setDeliveryDistrict(e.target.value)} required>
             <option value="">Semt seçin...</option>
             {ALANYA_DISTRICTS.map(district => (
@@ -1526,13 +1659,23 @@ function StoreContent({ onCreate, couriers }) {
           </select>
         </div>
         <div className="form-group">
-          <label htmlFor="deliveryAddress">Detaylı Teslimat Adresi:</label>
-          <textarea value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} id="deliveryAddress" rows={3} placeholder="Mahalle, sokak, bina no, kat..." required />
+          <label htmlFor="deliveryAddress">Teslimat Adresi: <span style={{ color: 'red' }}>*</span></label>
+          <textarea 
+            value={deliveryAddress} 
+            onChange={(e) => setDeliveryAddress(e.target.value)} 
+            id="deliveryAddress" 
+            rows={2} 
+            placeholder="Mahalle, sokak, bina no (GPS otomatik hesaplanır)" 
+            required 
+          />
+          <small style={{ color: '#666', fontSize: '0.8rem' }}>
+            📍 Adres koordinatları otomatik olarak hesaplanacak
+          </small>
         </div>
         <div className="form-group">
-          <label htmlFor="packageDetails">Paket Detayları:</label>
+          <label htmlFor="packageDetails">Paket Detayları: <span style={{ color: 'red' }}>*</span></label>
           <textarea value={packageDetails} onChange={(e) => setPackageDetails(e.target.value)} id="packageDetails" rows={2} required />
-          </div>
+        </div>
         <div className="form-group">
           <label htmlFor="priority">Öncelik:</label>
           <select id="priority" value={priority} onChange={(e) => setPriority(e.target.value)}>
@@ -1541,8 +1684,8 @@ function StoreContent({ onCreate, couriers }) {
             <option value="express">Ekspres (30 dakika)</option>
           </select>
         </div>
-        <button type="submit" className="btn-primary">
-          📦 Sipariş Oluştur
+        <button type="submit" className="btn-primary" disabled={isLoadingAddress}>
+          {isLoadingAddress ? '📍 Koordinatlar Hesaplanıyor...' : '📦 Sipariş Oluştur'}
         </button>
       </form>
     </div>
