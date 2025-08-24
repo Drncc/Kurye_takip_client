@@ -261,6 +261,49 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                     throw new Error('Dükkan bilgileri alınamadı');
                   }
                   
+                  // Dükkanın GPS verisi yoksa, semt bilgisinden hesapla
+                  if (!me.me.location?.coordinates && me.me.district) {
+                    const getStoreCoordinates = (district) => {
+                      const districtCoords = {
+                        'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                        'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                        'Oba': { lat: 36.5441, lng: 31.9957 },
+                        'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                        'Kestel': { lat: 36.5441, lng: 31.9957 },
+                        'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                        'Hacet': { lat: 36.5441, lng: 31.9957 },
+                        'Kale': { lat: 36.5441, lng: 31.9957 }
+                      };
+                      
+                      const baseCoords = districtCoords[district] || { lat: 36.5441, lng: 31.9957 };
+                      return {
+                        lat: baseCoords.lat + (Math.random() - 0.5) * 0.02,
+                        lng: baseCoords.lng + (Math.random() - 0.5) * 0.02
+                      };
+                    };
+                    
+                    const coordinates = getStoreCoordinates(me.me.district);
+                    
+                    // GPS verisini server'a gönder
+                    try {
+                      await fetch(`${API}/shops/location`, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                        body: JSON.stringify({ 
+                          coordinates: { 
+                            lat: coordinates.lat, 
+                            lng: coordinates.lng 
+                          } 
+                        }) 
+                      });
+                      
+                      // Profile'ı güncelle
+                      me.me.location = { coordinates: [coordinates.lng, coordinates.lat] };
+                    } catch (error) {
+                      console.log('Dükkan GPS güncelleme hatası:', error);
+                    }
+                  }
+                  
                   const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
                   onAuthenticated('store', token, me.me, uiUser);
                     notify(`Hoş geldiniz ${me.me.name}!`);
@@ -280,10 +323,39 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                   const fullAddress = `${addressText}, ${district}`;
                   
                   try {
+                    // Dükkan için semt bazlı GPS koordinatları hesapla
+                    const getStoreCoordinates = (district) => {
+                      const districtCoords = {
+                        'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                        'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                        'Oba': { lat: 36.5441, lng: 31.9957 },
+                        'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                        'Kestel': { lat: 36.5441, lng: 31.9957 },
+                        'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                        'Hacet': { lat: 36.5441, lng: 31.9957 },
+                        'Kale': { lat: 36.5441, lng: 31.9957 }
+                      };
+                      
+                      const baseCoords = districtCoords[district] || { lat: 36.5441, lng: 31.9957 };
+                      return {
+                        lat: baseCoords.lat + (Math.random() - 0.5) * 0.02, // Daha az rastgele offset
+                        lng: baseCoords.lng + (Math.random() - 0.5) * 0.02
+                      };
+                    };
+                    
+                    const coordinates = getStoreCoordinates(district);
+                    
                     const r = await fetch(`${API}/auth/register/shop`, { 
                       method: 'POST', 
                       headers: { 'Content-Type': 'application/json' }, 
-                      body: JSON.stringify({ name, email, password, addressText: fullAddress, district }) 
+                      body: JSON.stringify({ 
+                        name, 
+                        email, 
+                        password, 
+                        addressText: fullAddress, 
+                        district,
+                        coordinates // GPS koordinatları ekle
+                      }) 
                     });
                     const d = await r.json(); 
                     if (!r.ok) throw new Error(d.error || 'Kayıt başarısız');
@@ -294,6 +366,49 @@ function LoginScreen({ onAuthenticated, onAdminAccess, notify }) {
                   
                   if (!me.me) {
                     throw new Error('Dükkan bilgileri alınamadı');
+                  }
+                  
+                  // Dükkanın GPS verisi yoksa, semt bilgisinden hesapla
+                  if (!me.me.location?.coordinates && me.me.district) {
+                    const getStoreCoordinates = (district) => {
+                      const districtCoords = {
+                        'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                        'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                        'Oba': { lat: 36.5441, lng: 31.9957 },
+                        'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                        'Kestel': { lat: 36.5441, lng: 31.9957 },
+                        'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                        'Hacet': { lat: 36.5441, lng: 31.9957 },
+                        'Kale': { lat: 36.5441, lng: 31.9957 }
+                      };
+                      
+                      const baseCoords = districtCoords[district] || { lat: 36.5441, lng: 31.9957 };
+                      return {
+                        lat: baseCoords.lat + (Math.random() - 0.5) * 0.02,
+                        lng: baseCoords.lng + (Math.random() - 0.5) * 0.02
+                      };
+                    };
+                    
+                    const coordinates = getStoreCoordinates(me.me.district);
+                    
+                    // GPS verisini server'a gönder
+                    try {
+                      await fetch(`${API}/shops/location`, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
+                        body: JSON.stringify({ 
+                          coordinates: { 
+                            lat: coordinates.lat, 
+                            lng: coordinates.lng 
+                          } 
+                        }) 
+                      });
+                      
+                      // Profile'ı güncelle
+                      me.me.location = { coordinates: [coordinates.lng, coordinates.lat] };
+                    } catch (error) {
+                      console.log('Dükkan GPS güncelleme hatası:', error);
+                    }
                   }
                   
                   const uiUser = { name: me.me.name, address: me.me.addressText, type: 'store' };
@@ -831,7 +946,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               phone: c.phone || '-',
               location: 'GPS ile takip ediliyor',
               status: 'available',
-              coordinates: c.location?.coordinates || [31.9957, 36.5441],
+              coordinates: c.location?.coordinates || [31.9957, 36.5441], // [lng, lat] format
               distance: distance ? `${distance.toFixed(1)} km` : 'Konum bilgisi alınamadı'
             };
           });
@@ -879,7 +994,7 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
               id: s._id,
               name: s.name,
               address: s.addressText,
-              coordinates: s.location?.coordinates || [31.9957, 36.5441],
+              coordinates: s.location?.coordinates || [31.9957, 36.5441], // [lng, lat] format
               distance: distance ? `${distance.toFixed(1)} km` : 'Konum bilgisi alınamadı'
             };
           });
@@ -1004,14 +1119,41 @@ function MainApp({ role, currentUser, token, profile, onLogout, notify }) {
                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                    />
                    {/* Dükkan konumu */}
-                   {profile?.location?.coordinates && (
-                     <Marker position={[profile.location.coordinates[1], profile.location.coordinates[0]]}>
-                       <Popup>
-                         <strong>🏪 {currentUser.name}</strong><br/>
-                         Sizin konumunuz
-                       </Popup>
-                     </Marker>
-                   )}
+                   {(() => {
+                     let storeLat, storeLng;
+                     if (profile?.location?.coordinates) {
+                       storeLat = profile.location.coordinates[1]; // lat
+                       storeLng = profile.location.coordinates[0]; // lng
+                     } else if (profile?.district) {
+                       // Semt bazlı yaklaşık koordinat
+                       const districtCoords = {
+                         'Mahmutlar': { lat: 36.5441, lng: 31.9957 },
+                         'Kleopatra': { lat: 36.5441, lng: 31.9957 },
+                         'Oba': { lat: 36.5441, lng: 31.9957 },
+                         'Tosmur': { lat: 36.5441, lng: 31.9957 },
+                         'Kestel': { lat: 36.5441, lng: 31.9957 },
+                         'Gullerpinari': { lat: 36.5441, lng: 31.9957 },
+                         'Hacet': { lat: 36.5441, lng: 31.9957 },
+                         'Kale': { lat: 36.5441, lng: 31.9957 }
+                       };
+                       const baseCoords = districtCoords[profile.district] || { lat: 36.5441, lng: 31.9957 };
+                       storeLat = baseCoords.lat + (Math.random() - 0.5) * 0.02;
+                       storeLng = baseCoords.lng + (Math.random() - 0.5) * 0.02;
+                     } else {
+                       // Varsayılan Alanya merkez
+                       storeLat = 36.5441;
+                       storeLng = 31.9957;
+                     }
+                     
+                     return (
+                       <Marker position={[storeLat, storeLng]}>
+                         <Popup>
+                           <strong>🏪 {currentUser.name}</strong><br/>
+                           {profile?.location?.coordinates ? 'GPS konumunuz' : 'Semt bazlı yaklaşık konum'}
+                         </Popup>
+                       </Marker>
+                     );
+                   })()}
                    
                    {/* Müsait kuryeler - gerçek zamanlı */}
                    {nearbyCouriers.map((courier) => (
