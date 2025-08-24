@@ -17,11 +17,11 @@ console.log(`🔍 Dist exists: ${existsSync(distPath)}`);
 if (!existsSync(distPath)) {
   console.error(`❌ Dist folder not found at: ${distPath}`);
   console.error(`📂 Current directory: ${__dirname}`);
-  console.error(`📋 Directory contents:`, require('fs').readdirSync(__dirname));
+  console.error(`📋 Directory contents:`, readdirSync(__dirname));
   process.exit(1);
 }
 
-console.log(`📋 Dist contents:`, require('fs').readdirSync(distPath));
+console.log(`📋 Dist contents:`, readdirSync(distPath));
 
 // MIME type mapping
 const mimeTypes = {
